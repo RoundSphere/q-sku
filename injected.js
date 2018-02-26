@@ -21,19 +21,22 @@ class InjectScript {
     registerEventHandlers() {
         $(document).on("click", '#ordersGrid', (e) => {
             console.log( 'a thing was clicked' );
-            // Do things when a thing is clicked
-            this.waitFor( '#poItemsGrid' ).then((container) => {
-                // Observers are not working correctly because the entire pane is re-rendered on changes, maybe?
-                // Figure out how updates work
-                this.observeChanges( container, this.updateDetails );
-            });
+            // TODO This is broken and I'm stupid. Do better
+            // Consider walking away from observer and moving to specified onClick events
+            this.observeChanges( $('#centerSouthPanel' )[0], this.listListener );
         });
     }
+    listListener( array, self ){
+        let items = array.filter((item) => {
+            return item.target === $('#poItemsGrid')[0] && item.addedNodes.length;
+        });
+        if( items.length ){
+            self.updateDetails( items );
+        }
+    }
     observeChanges(element, callback) {
-        let observer = new MutationObserver((mutations, element) => {
-            mutations.forEach((mutation) => {
-                callback( mutation, this );
-            });
+        let observer = new MutationObserver((mutations) => {
+             callback( mutations, this );
         });
         let observerConfig = {
             childList: true,
@@ -41,19 +44,23 @@ class InjectScript {
         };
         observer.observe(element, observerConfig);
     }
-    updateDetails(mutation, self){
-        console.log( mutation );
-        if( mutation.addedNodes.length ){
-            mutation.addedNodes.forEach((node) => {
-                console.log( mutation.target, node, 'added');
+    updateDetails(mutations){
+        console.log( 'poItemsGrid has been (re)rendered' );
+        console.log( mutations );
 
-            });
-        }
-        if( mutation.removedNodes.length ){
-            mutation.removedNodes.forEach((node) => {
-                console.log( mutation.target, node, 'removed');
-            });
-        }
+        this.waitFor( '#poItemsGrid' ).then( (container) => {
+            this.data = [];
+            let rows = $( container ).find( 'tr' );
+            for( var i = 1, rowLength = rows.length; i<rowLength; i++ ){
+                let cells = rows[i].cells;
+                this.data.push({
+                    id: cells[1].innerText
+                });
+            }
+            console.log( rows[1].cells );
+
+            console.log( this.data );
+        });
     }
     waitFor(selector) {
         return new Promise((resolve) => {
