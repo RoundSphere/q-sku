@@ -19,24 +19,34 @@ class InjectScript {
         this.registerEventHandlers();
     }
     registerEventHandlers() {
-        $(document).on("click", '#ordersGrid', (e) => {
+        // Click on an invoice in ordersGrid
+        $(document).on('click', '#ordersGrid', (e) => {
             console.log( 'a thing was clicked' );
-            // TODO This is broken and I'm stupid. Do better
-            // Consider walking away from observer and moving to specified onClick events
-            this.observeChanges( $('#centerSouthPanel' )[0], this.listListener );
+            this.checkGridStatus();
+        });
+        // Click on Save in modal while adding item to existing PO or editing
+        $(document).on('click', 'div[aria-describedby=poItemDialog] button:contains(Save)', (e) => {
+            console.log( 'the button in the dialog box was clicked' );
+            this.checkGridStatus();
+        });
+        // Open Manage PO Modal
+        $(document).on('click', '#managePoItem', (e) => {
+            this.manageModal();
+        });
+        // Close Manage PO Modal
+        $(document).on('click', '.ext-modal-close', e => {
+            e.preventDefault();
+            $('#ext-modal').remove();
         });
     }
-    listListener( array, self ){
-        let items = array.filter((item) => {
-            return item.target === $('#poItemsGrid')[0] && item.addedNodes.length;
-        });
-        if( items.length ){
-            self.updateDetails( items );
-        }
+    manageModal() {
+        console.log( this.data );
+        $('body').append('<div id="ext-modal"></div>' );
+        $('#ext-modal').html( extModalTemplate( this.data ));
     }
     observeChanges(element, callback) {
         let observer = new MutationObserver((mutations) => {
-             callback( mutations, this );
+            callback( this, mutations );
         });
         let observerConfig = {
             childList: true,
@@ -44,22 +54,41 @@ class InjectScript {
         };
         observer.observe(element, observerConfig);
     }
-    updateDetails(mutations){
-        console.log( 'poItemsGrid has been (re)rendered' );
-        console.log( mutations );
+    checkGridStatus(){
+        // If the poItemsGrid already exists, you need to wait for it to reload before getting/setting the details
+        if( $('#poItemsGrid' ).length ){
+            this.observeChanges( $('#poDetailsPane')[0], this.updateDetails );
+        } else {
+            this.updateDetails( this );
+        }
+    }
+    updateDetails( self ){
+        self.waitFor( '#poItemsGrid' ).then( (container) => {
+            // Diable #internalNotes
+            $('#internalNotes').attr( 'readonly', true );
+            $('#internalNotes').before('<p style="width: 200px; font-size: 11px; line-height: 1.1; margin: 0; color: #e44;">Internal Notes has been disabled. Please use the Manage button to add notes.</p>');
 
-        this.waitFor( '#poItemsGrid' ).then( (container) => {
-            this.data = [];
+            $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
+            $('#ext-managePoItem').html(extButton());
+            console.log( 'poItemsGrid has been (re)rendered' );
+            self.data = {
+                id: $('#poDetailsPane').find('ul > span').text().split('#')[1],
+                items: []
+            };
             let rows = $( container ).find( 'tr' );
+            function getCell( value ){
+                return $( rows[i] ).find( '[aria-describedby=poItemsGrid_' + value + ']' ).text();
+            }
             for( var i = 1, rowLength = rows.length; i<rowLength; i++ ){
                 let cells = rows[i].cells;
-                this.data.push({
-                    id: cells[1].innerText
+                self.data.items.push({
+                    id: getCell( 'itemId' ),
+                    vendorSku: getCell( 'vendorSku' ),
+                    qty: getCell( 'itemQuantity' )
                 });
             }
-            console.log( rows[1].cells );
-
-            console.log( this.data );
+            $('#internalNotes').val( JSON.stringify( self.data ) ) ;
+            console.log( self.data );
         });
     }
     waitFor(selector) {
@@ -98,9 +127,7 @@ function formatMoney(val) {
     return `$${commafy(val)}`;
 }
 function parseMoney(val) {
-    return parseInt(val
-        .replace("$", "")
-        .replace(/,/g, ""));
+    return parseInt(val.replace("$", "").replace(/,/g, ""));
 }
 function commafy(num) {
     if (!num) {
@@ -114,6 +141,24 @@ function commafy(num) {
         str[1] = str[1].replace(/(\d{3})/g, '$1 ');
     }
     return str.join('.');
+}
+
+function extModalTemplate( data ){
+    return `
+        <div id="ext-modal__inner">
+            <span class="ext-modal-close">Close</span>
+            <p><strong>PO #: </strong> - ${data.id}</p>
+            ${data.items.map( item => `<p>${item.id} - ${item.vendorSku} - ${item.qty}</p>`).join('')}
+        </div>
+    `;
+}
+function extButton(){
+    return `
+        <button id="managePoItem" style="margin-bottom: 5px; width:70px;" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
+            <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
+            <span class="ui-button-text">Manage</span>
+        </button>
+    `;
 }
 
 let injectScript = new InjectScript();
