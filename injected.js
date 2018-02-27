@@ -17,18 +17,21 @@ class InjectScript {
     constructor() {
         console.log("InjectScript loaded");
         this.registerEventHandlers();
+        this.observer = new MutationSummary({
+            callback: () => this.updateDetails(),
+            queries: [{ element: '#poItemsGrid' }]
+        });
     }
     registerEventHandlers() {
         // Click on an invoice in ordersGrid
         $(document).on('click', '#ordersGrid', (e) => {
             console.log( 'a thing was clicked' );
-            this.checkGridStatus();
         });
         // Click on Save in modal while adding item to existing PO or editing
-        $(document).on('click', 'div[aria-describedby=poItemDialog] button:contains(Save)', (e) => {
-            console.log( 'the button in the dialog box was clicked' );
-            this.checkGridStatus();
-        });
+        // $(document).on('click', 'div[aria-describedby=poItemDialog] button:contains(Save)', (e) => {
+        //     console.log( 'the button in the dialog box was clicked' );
+        //     this.checkGridStatus();
+        // });
         // Open Manage PO Modal
         $(document).on('click', '#managePoItem', (e) => {
             this.manageModal();
@@ -44,26 +47,8 @@ class InjectScript {
         $('body').append('<div id="ext-modal"></div>' );
         $('#ext-modal').html( extModalTemplate( this.data ));
     }
-    observeChanges(element, callback) {
-        let observer = new MutationObserver((mutations) => {
-            callback( this, mutations );
-        });
-        let observerConfig = {
-            childList: true,
-            subtree: true
-        };
-        observer.observe(element, observerConfig);
-    }
-    checkGridStatus(){
-        // If the poItemsGrid already exists, you need to wait for it to reload before getting/setting the details
-        if( $('#poItemsGrid' ).length ){
-            this.observeChanges( $('#poDetailsPane')[0], this.updateDetails );
-        } else {
-            this.updateDetails( this );
-        }
-    }
-    updateDetails( self ){
-        self.waitFor( '#poItemsGrid' ).then( (container) => {
+    updateDetails( summary ){
+        this.waitFor( '#poItemsGrid' ).then( (container) => {
             // Diable #internalNotes
             $('#internalNotes').attr( 'readonly', true );
             $('#internalNotes').before('<p style="width: 200px; font-size: 11px; line-height: 1.1; margin: 0; color: #e44;">Internal Notes has been disabled. Please use the Manage button to add notes.</p>');
@@ -71,7 +56,7 @@ class InjectScript {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html(extButton());
             console.log( 'poItemsGrid has been (re)rendered' );
-            self.data = {
+            this.data = {
                 id: $('#poDetailsPane').find('ul > span').text().split('#')[1],
                 items: []
             };
@@ -81,14 +66,14 @@ class InjectScript {
             }
             for( var i = 1, rowLength = rows.length; i<rowLength; i++ ){
                 let cells = rows[i].cells;
-                self.data.items.push({
+                this.data.items.push({
                     id: getCell( 'itemId' ),
                     vendorSku: getCell( 'vendorSku' ),
                     qty: getCell( 'itemQuantity' )
                 });
             }
-            $('#internalNotes').val( JSON.stringify( self.data ) ) ;
-            console.log( self.data );
+            $('#internalNotes').val( JSON.stringify( this.data ) ) ;
+            console.log( this.data );
         });
     }
     waitFor(selector) {
