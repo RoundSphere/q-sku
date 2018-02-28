@@ -17,7 +17,6 @@ function tryParseJSON (jsonString){
     try {
         var o = JSON.parse(jsonString);
         if (o && typeof o === "object") {
-            // console.log( o, 'the string was a valid json object' );
             return o;
         }
     }
@@ -66,7 +65,9 @@ class InjectScript {
 
         $('#internalNotes').before( extInternalNoteMsg() );
         // This is probably just for dev. Probably remove before deploy
-        $('#internalNotes').before( `<p style="width: 200px; max-height: 50px; overflow: auto; line-height: 1;">Current Notes: ${$('#internalNotes').val()}</p>` );
+        let currentNotesString = `<p style="width: 200px; max-height: 50px; overflow: auto; line-height: 1;">`;
+            currentNotesString += `Current Notes: ${$('#internalNotes').val()}</p>`;
+        $('#internalNotes').before( currentNotesString );
     }
     checkNotes(){
         let notesVal = $('#internalNotes').val();
@@ -74,7 +75,8 @@ class InjectScript {
         if( validJson ){
             return this.validateJson( validJson );
         } else {
-            let msg = 'the internal notes were not valid json. Value of #internalNotes will be added to this.data.additionalNotes.';
+            let msg = 'the internal notes were not valid json.';
+                msg += 'Value of #internalNotes will be added to this.data.additionalNotes.';
             if( ! notesVal ){
                 msg = 'Notes were empty. They need to be created for the first time';
             }
@@ -265,7 +267,8 @@ function extModalTemplate( data ){
 }
 function extButton(){
     return `
-        <button id="managePoItem" style="margin-bottom: 5px; width:70px;" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
+        <button id="managePoItem" style="margin-bottom: 5px; width:70px;"
+            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
             <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
             <span class="ui-button-text">Manage</span>
         </button>
