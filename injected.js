@@ -47,6 +47,10 @@ class InjectScript {
         $(document).on('click', '#managePoItem', (e) => {
             this.manageModal();
         });
+        $(document).on('click', '#createNew', (e) => {
+            // Proof of concept - just splitting the first item
+            this.data.items[0].allocate();
+        });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
@@ -157,11 +161,7 @@ class InjectScript {
             this.data = this.checkNotes();
 
             if( ! this.data ){
-                this.data = {
-                    id: $('#poDetailsPane').find('ul > span').text().split('#')[1],
-                    items: [],
-                    additionalNotes: ''
-                };
+                this.data = new PoObject();
             }
 
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
@@ -173,20 +173,13 @@ class InjectScript {
             }
             for( var i = 1, rowLength = rows.length; i<rowLength; i++ ){
                 let cells = rows[i].cells;
-                this.data.items.push({
+                let options = {
                     id: getCell( 'itemId' ),
                     masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
                     vendorSku: getCell( 'vendorSku' ),
-                    masterQty: getCell( 'itemQuantity' ),
-                    listings: [
-                        {
-                            listingSku: getCell( 'vendorSku' ),
-                            listingQty: getCell( 'itemQuantity' ),
-                            sendToFBA: true,
-                            ltl: true
-                        }
-                    ]
-                });
+                    masterQty: getCell( 'itemQuantity' )
+                };
+                this.data.items.push( new ItemObject( options ) );
             }
 
             console.log( JSON.stringify( this.data, null, 4 ));
@@ -229,6 +222,42 @@ class InjectScript {
         });
     }
 }
+class PoObject {
+    constructor() {
+        console.log("PO Object Created");
+        this.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+        this.items = [];
+        this.additionalNotes = '';
+    }
+}
+class ItemObject {
+    constructor( options ){
+        console.log("Item Object Created");
+        this.id        = options.id;
+        this.masterSku = options.masterSku;
+        this.masterQty = options.masterQty;
+
+        let listingOpts = {
+            sku: options.masterSku,
+            qty: options.masterQty
+        };
+        this.listings = [];
+        this.listings.push( new ListingObject( listingOpts ) );
+    }
+    allocate(){
+        this.listings.push( new ListingObject({ sku: this.masterSku, qty: "0" }) );
+    }
+}
+class ListingObject{
+    constructor( options ){
+        console.log("Listing Object Created");
+        this.masterSku  = options.sku;
+        this.listingSku = options.sku;
+        this.listingQty = options.qty;
+        this.sendToFBA  = true;
+        this.ltl        = true;
+    }
+}
 
 function formatMoney(val) {
     return `$${commafy(val)}`;
@@ -261,7 +290,8 @@ function extModalTemplate( data ){
         <div id="ext-modal__inner">
             <span class="ext-modal-close">Close</span>
             <p><strong>PO #: </strong> - ${data.id}</p>
-            ${data.items.map( item => `<p>${item.id} - ${item.vendorSku} - ${item.masterQty}</p>`).join('')}
+            ${data.items.map( item => `<p>${item.id} - ${item.masterSku} - ${item.masterQty}</p>`).join('')}
+            <div id="createNew">Create a new listing</div>
         </div>
     `;
 }
