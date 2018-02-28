@@ -13,6 +13,18 @@ function makeRequest (method, url, done) {
     xhr.send();
 }
 
+function tryParseJSON (jsonString){
+    try {
+        var o = JSON.parse(jsonString);
+        if (o && typeof o === "object") {
+            // console.log( o, 'the string was a valid json object' );
+            return o;
+        }
+    }
+    catch (e) { }
+    return false;
+}
+
 class InjectScript {
     constructor() {
         console.log("InjectScript loaded");
@@ -47,19 +59,112 @@ class InjectScript {
         $('body').append('<div id="ext-modal"></div>' );
         $('#ext-modal').html( extModalTemplate( this.data ));
     }
+    setUpNotes(){
+        // Diable #internalNotes
+        // $('#internalNotes').attr( 'readonly', true ).hide();
+        $('#internalNotes').removeAttr( 'maxlength' );
+
+        $('#internalNotes').before( extInternalNoteMsg() );
+        // This is probably just for dev. Probably remove before deploy
+        $('#internalNotes').before( `<p style="width: 200px; max-height: 50px; overflow: auto; line-height: 1;">Current Notes: ${$('#internalNotes').val()}</p>` );
+    }
+    checkNotes(){
+        let notesVal = $('#internalNotes').val();
+        let validJson = tryParseJSON( notesVal );
+        if( validJson ){
+            return this.validateJson( validJson );
+        } else {
+            let msg = 'the internal notes were not valid json. Value of #internalNotes will be added to this.data.additionalNotes.';
+            if( ! notesVal ){
+                msg = 'Notes were empty. They need to be created for the first time';
+            }
+            alert( msg );
+            return false;
+        }
+    }
+    validateJson( value ){
+        let errors = [];
+
+        if( ! value.hasOwnProperty( 'id' ) ){
+            errors.push( 'id is broken' );
+        } else {
+            if( typeof value.id != 'string' ){
+                errors.push( 'id is not a string' );
+            }
+        }
+
+        if( ! value.hasOwnProperty( 'items' ) ){
+            errors.push( 'items is broken' );
+        } else {
+            if( ! Array.isArray( value.items ) ){
+                errors.push( 'items is not an array' );
+            } else {
+                value.items.forEach((item, idx) => {
+                    if( ! item.hasOwnProperty( 'id' ) ){
+                        errors.push( '-item ' + idx + ' is missing id' );
+                    }
+                    if( ! item.hasOwnProperty( 'vendorSku' ) ){
+                        errors.push( '-item ' + idx + ' is missing vendorSku' );
+                    }
+                    if( ! item.hasOwnProperty( 'masterQty' ) ){
+                        errors.push( '-item ' + idx + ' is missing masterQty' );
+                    }
+                    if( ! item.hasOwnProperty( 'listings' ) ){
+                        errors.push( '-item ' + idx + ' is missing listings' );
+                    } else {
+                        if( ! Array.isArray( item.listings ) ){
+                            errors.push( '-item ' + idx + ' is not an array' );
+                        } else {
+                            item.listings.forEach((listing, key) => {
+                                if( ! listing.hasOwnProperty( 'listingSku' ) ){
+                                    errors.push( '-- ' + key + ' is missing listingSku' );
+                                }
+                                if( ! listing.hasOwnProperty( 'listingQty' ) ){
+                                    errors.push( '-- ' + key + ' is missing listingQty' );
+                                }
+                                if( ! listing.hasOwnProperty( 'sendToFBA' ) ){
+                                    errors.push( '-- ' + key + ' is missing sendToFBA' );
+                                }
+                                if( ! listing.hasOwnProperty( 'ltl' ) ){
+                                    errors.push( '-- ' + key + ' is missing ltl' );
+                                }
+
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        if( ! value.hasOwnProperty( 'additionalNotes' ) ){
+            errors.push( 'additionalNotes is broken' );
+        }
+
+        if( errors.length > 0 ){
+            alert( 'Something is wrong: \n-' + errors.join( '\n-' ) );
+        } else {
+            console.log( 'the json from the notes is valid and ready to be updated' );
+            return value;
+        }
+    }
+    // So far, this should only be for editing an exiting PO. Will need to edit this, rebuild for new POs
     updateDetails( summary ){
         this.waitFor( '#poItemsGrid' ).then( (container) => {
-            // Diable #internalNotes
-            $('#internalNotes').attr( 'readonly', true );
-            $('#internalNotes').before('<p style="width: 200px; font-size: 11px; line-height: 1.1; margin: 0; color: #e44;">Internal Notes has been disabled. Please use the Manage button to add notes.</p>');
+            console.log( 'poItemsGrid has been (re)rendered' );
+            this.setUpNotes();
+            this.data = this.checkNotes();
+
+            if( ! this.data ){
+                this.data = {
+                    id: $('#poDetailsPane').find('ul > span').text().split('#')[1],
+                    items: [],
+                    additionalNotes: ''
+                };
+            }
 
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html(extButton());
-            console.log( 'poItemsGrid has been (re)rendered' );
-            this.data = {
-                id: $('#poDetailsPane').find('ul > span').text().split('#')[1],
-                items: []
-            };
+
             let rows = $( container ).find( 'tr' );
             function getCell( value ){
                 return $( rows[i] ).find( '[aria-describedby=poItemsGrid_' + value + ']' ).text();
@@ -68,12 +173,27 @@ class InjectScript {
                 let cells = rows[i].cells;
                 this.data.items.push({
                     id: getCell( 'itemId' ),
+                    masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
                     vendorSku: getCell( 'vendorSku' ),
-                    qty: getCell( 'itemQuantity' )
+                    masterQty: getCell( 'itemQuantity' ),
+                    listings: [
+                        {
+                            listingSku: getCell( 'vendorSku' ),
+                            listingQty: getCell( 'itemQuantity' ),
+                            sendToFBA: true,
+                            ltl: true
+                        }
+                    ]
                 });
             }
-            $('#internalNotes').val( JSON.stringify( this.data ) ) ;
-            console.log( this.data );
+
+            console.log( JSON.stringify( this.data, null, 4 ));
+
+            // var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
+            // if( confirmUpdate ){
+            //     console.log( 'Update confirmed' );
+            //     $('#internalNotes').val( JSON.stringify( this.data ) ) ;
+            // }
         });
     }
     waitFor(selector) {
@@ -128,12 +248,18 @@ function commafy(num) {
     return str.join('.');
 }
 
+const extInternalNoteMsg = function(){
+    return `
+        <p class="ext-notice">Internal Notes has been disabled. Please use the Manage button to add notes.</p>
+    `;
+};
+
 function extModalTemplate( data ){
     return `
         <div id="ext-modal__inner">
             <span class="ext-modal-close">Close</span>
             <p><strong>PO #: </strong> - ${data.id}</p>
-            ${data.items.map( item => `<p>${item.id} - ${item.vendorSku} - ${item.qty}</p>`).join('')}
+            ${data.items.map( item => `<p>${item.id} - ${item.vendorSku} - ${item.masterQty}</p>`).join('')}
         </div>
     `;
 }

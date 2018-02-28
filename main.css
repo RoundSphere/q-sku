@@ -30,3 +30,11 @@ div[aria-describedby=poItemDialog] {
     left: 50%;
     transform: translate( -50%, -50% );
 }
+
+.ext-notice {
+    width: 200px;
+    font-size: 11px;
+    line-height: 1.1;
+    margin: 0;
+    color: #e44;
+}
