@@ -24,6 +24,113 @@ function tryParseJSON (jsonString){
     return false;
 }
 
+const extTableRowMaster = function( item ){
+    return `
+        <tr class="masterItem" data-masterid="${item.id}">
+            <td><a data-itemid="${item.id}" href="#" class="createNew">Add</a></td>
+            <td>${item.masterSku}</td>
+            <td><input type="checkbox" /></td>
+            <td>${item.masterSku}</td>
+            <td>${item.masterQty}</td>
+            <td><input type="checkbox" /></td>
+        </tr>
+        ${item.listings.map( listing => extTableRowListing( listing )).join('')}
+    `;
+};
+const extTableRowListing = function( item ){
+    return `
+        <tr data-masterid="${item.parent}">
+            <td><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></td>
+            <td>+  ${item.id}</td>
+            <td><input type="checkbox" /></td>
+            <td>${item.listingSku}</td>
+            <td>${item.listingQty}</td>
+            <td><input type="checkbox" /></td>
+        </tr>
+    `;
+};
+
+function extModalTable( data ){
+    return `
+        <p><strong>PO #: </strong> - ${data.id}</p>
+        <table style="width: 100%;">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Master SKU</th>
+                    <th>Send to FBA?</th>
+                    <th>Listing SKU</th>
+                    <th>Quantity</th>
+                    <th>LTL?</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${data.items.map( item => extTableRowMaster( item )).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function extModalTemplate(){
+    return `
+        <div id="ext-modal__inner">
+            <span class="ext-modal-close">Close</span>
+            <div class="modal__content"></div>
+        </div>
+    `;
+}
+
+class PoObject {
+    constructor() {
+        console.log("PO Object Created");
+        this.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+        this.items = [];
+        this.additionalNotes = '';
+    }
+}
+class ItemObject {
+    constructor( options ){
+        console.log("Item Object Created");
+        this.id        = options.id;
+        this.masterSku = options.masterSku;
+        this.masterQty = options.masterQty;
+
+        let listingOpts = {
+            sku: options.masterSku,
+            qty: options.masterQty,
+            parent: options.id
+        };
+        this.listings = [];
+        this.listings.push( new ListingObject( listingOpts ) );
+    }
+    addListing(){
+        let newListing = new ListingObject({ sku: this.masterSku, qty: "0", parent: this.id });
+        this.listings.push( newListing );
+        return newListing;
+    }
+    removeListing( listingId ){
+        let item = this.listings.find( listing => listing.id === listingId );
+        let index = this.listings.indexOf( item );
+
+        if( index > -1 ){
+            this.listings.splice(index, 1);
+        }
+        return this;
+    }
+}
+class ListingObject{
+    constructor( options ){
+        console.log("Listing Object Created");
+        this.id         = options.parent + '_' + Date.now();
+        this.masterSku  = options.sku;
+        this.listingSku = options.sku;
+        this.listingQty = options.qty;
+        this.sendToFBA  = true;
+        this.ltl        = true;
+        this.parent     = options.parent;
+    }
+}
+
 class InjectScript {
     constructor() {
         console.log("InjectScript loaded");
@@ -45,11 +152,33 @@ class InjectScript {
         // });
         // Open Manage PO Modal
         $(document).on('click', '#managePoItem', (e) => {
+            e.preventDefault();
             this.manageModal();
         });
-        $(document).on('click', '#createNew', (e) => {
-            // Proof of concept - just splitting the first item
-            this.data.items[0].allocate();
+        $(document).on('click', '.createNew', (e) => {
+            e.preventDefault();
+            let el = $( e.currentTarget );
+            let id = el.data( 'itemid' ).toString();
+            let masterItem = this.data.items.find( item => item.id === id );
+
+            masterItem.addListing();
+
+            this.tableRender();
+
+            console.log( JSON.stringify( this.data, null, 4 ) );
+        });
+        $(document).on('click', '.deleteRow', (e) => {
+            e.preventDefault();
+            let el = $( e.currentTarget );
+            let id = el.data( 'itemid' ).toString();
+            let masterItem = this.data.items.find( item => item.id === id );
+            let listingId = el.data( 'listingid' ).toString();
+
+            masterItem.removeListing( listingId );
+
+            this.tableRender();
+
+            console.log( JSON.stringify( this.data, null, 4 ) );
         });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
@@ -60,7 +189,27 @@ class InjectScript {
     manageModal() {
         console.log( this.data );
         $('body').append('<div id="ext-modal"></div>' );
-        $('#ext-modal').html( extModalTemplate( this.data ));
+        $('#ext-modal').html( extModalTemplate());
+        this.tableRender();
+    }
+    tableRender(){
+        let el = $('.modal__content');
+        if( el.length ){
+            // Render table
+            el.html( extModalTable( this.data ) );
+            let count = 1;
+
+            // TODO fix this
+            el.find( 'tr.masterItem' ).each( (idx, masterItem) => {
+                let id = $( masterItem ).data( 'masterid' );
+                let color = '#ccc';
+                if( count%2 === 1 ){
+                    color = '#eee';
+                }
+                $( `[data-masterid=${id}]` ).css( 'background', color );
+                count++;
+            });
+        }
     }
     setUpNotes(){
         // Diable #internalNotes
@@ -84,7 +233,7 @@ class InjectScript {
             if( ! notesVal ){
                 msg = 'Notes were empty. They need to be created for the first time';
             }
-            alert( msg );
+            // alert( msg );
             return false;
         }
     }
@@ -222,42 +371,6 @@ class InjectScript {
         });
     }
 }
-class PoObject {
-    constructor() {
-        console.log("PO Object Created");
-        this.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
-        this.items = [];
-        this.additionalNotes = '';
-    }
-}
-class ItemObject {
-    constructor( options ){
-        console.log("Item Object Created");
-        this.id        = options.id;
-        this.masterSku = options.masterSku;
-        this.masterQty = options.masterQty;
-
-        let listingOpts = {
-            sku: options.masterSku,
-            qty: options.masterQty
-        };
-        this.listings = [];
-        this.listings.push( new ListingObject( listingOpts ) );
-    }
-    allocate(){
-        this.listings.push( new ListingObject({ sku: this.masterSku, qty: "0" }) );
-    }
-}
-class ListingObject{
-    constructor( options ){
-        console.log("Listing Object Created");
-        this.masterSku  = options.sku;
-        this.listingSku = options.sku;
-        this.listingQty = options.qty;
-        this.sendToFBA  = true;
-        this.ltl        = true;
-    }
-}
 
 function formatMoney(val) {
     return `$${commafy(val)}`;
@@ -285,16 +398,6 @@ const extInternalNoteMsg = function(){
     `;
 };
 
-function extModalTemplate( data ){
-    return `
-        <div id="ext-modal__inner">
-            <span class="ext-modal-close">Close</span>
-            <p><strong>PO #: </strong> - ${data.id}</p>
-            ${data.items.map( item => `<p>${item.id} - ${item.masterSku} - ${item.masterQty}</p>`).join('')}
-            <div id="createNew">Create a new listing</div>
-        </div>
-    `;
-}
 function extButton(){
     return `
         <button id="managePoItem" style="margin-bottom: 5px; width:70px;"
