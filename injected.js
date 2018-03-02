@@ -26,48 +26,42 @@ function tryParseJSON (jsonString){
 
 const extTableRowMaster = function( item ){
     return `
-        <tr class="masterItem" data-masterid="${item.id}">
-            <td><a data-itemid="${item.id}" href="#" class="createNew">Add</a></td>
-            <td>${item.masterSku}</td>
-            <td><input type="checkbox" /></td>
-            <td>${item.masterSku}</td>
-            <td>${item.masterQty}</td>
-            <td><input type="checkbox" /></td>
-        </tr>
+        <div class="masterItem ext-flex" data-masterid="${item.id}">
+            <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Add</a></div>
+            <div class="ext-flex-item--full">${item.masterSku}</div>
+            <div class="ext-flex-item"><input type="checkbox" /></div>
+            <div class="ext-flex-item--full">${item.masterSku}</div>
+            <div class="ext-flex-item">${item.masterQty}</div>
+            <div class="ext-flex-item"><input type="checkbox" /></div>
+        </div>
         ${item.listings.map( listing => extTableRowListing( listing )).join('')}
     `;
 };
 const extTableRowListing = function( item ){
     return `
-        <tr data-masterid="${item.parent}">
-            <td><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></td>
-            <td>+  ${item.id}</td>
-            <td><input type="checkbox" /></td>
-            <td>${item.listingSku}</td>
-            <td>${item.listingQty}</td>
-            <td><input type="checkbox" /></td>
-        </tr>
+        <div class="ext-flex" data-masterid="${item.parent}">
+            <div class="ext-flex-item"><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></div>
+            <div class="ext-flex-item--full">+  ${item.id}</div>
+            <div class="ext-flex-item"><input type="checkbox" /></div>
+            <div class="ext-flex-item--full">${item.listingSku}</div>
+            <div class="ext-flex-item">${item.listingQty}</div>
+            <div class="ext-flex-item"><input type="checkbox" /></div>
+        </div>
     `;
 };
 
 function extModalTable( data ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
-        <table style="width: 100%;">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Master SKU</th>
-                    <th>Send to FBA?</th>
-                    <th>Listing SKU</th>
-                    <th>Quantity</th>
-                    <th>LTL?</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.items.map( item => extTableRowMaster( item )).join('')}
-            </tbody>
-        </table>
+        <div class="ext-flex">
+            <div class="ext-flex-item"></div>
+            <div class="ext-flex-item--full">Master SKU</div>
+            <div class="ext-flex-item">Send to FBA?</div>
+            <div class="ext-flex-item--full">Listing SKU</div>
+            <div class="ext-flex-item">Quantity</div>
+            <div class="ext-flex-item">LTL?</div>
+        </div>
+        ${data.items.map( item => extTableRowMaster( item )).join('')}
     `;
 }
 
