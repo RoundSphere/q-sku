@@ -1,17 +1,39 @@
 console.clear();
 console.log( '***** Content Script ******' );
 
-function makeRequest (method, url, done) {
+function makeRequest (method, url, done, error) {
     var xhr = new XMLHttpRequest();
+
     xhr.open(method, url);
+    xhr.setRequestHeader( 'Authorization', 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a');
     xhr.onload = function () {
-        done(null, xhr.response);
+        done(xhr.response);
     };
     xhr.onerror = function () {
-        done(xhr.response);
+        error(xhr.response);
     };
     xhr.send();
 }
+
+function ajax(sku) {
+    return new Promise(function(resolve, reject) {
+        $.ajax({
+            url: `https://app.skubana.com/service/v1/listings`,
+            headers: {
+                'Authorization': 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a'
+            },
+            data: { masterSku: sku },
+            success: function( response ){
+                resolve( response );
+            },
+            error: function( response ){
+                reject( response );
+            }
+        });
+    });
+}
+
+
 
 function tryParseJSON (jsonString){
     try {
@@ -24,33 +46,48 @@ function tryParseJSON (jsonString){
     return false;
 }
 
-const extTableRowMaster = function( item ){
+const extListings = function( value ){
     return `
-        <div class="masterItem ext-flex" data-masterid="${item.id}">
-            <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Add</a></div>
-            <div class="ext-flex-item--full">${item.masterSku}</div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
-            <div class="ext-flex-item--full">${item.masterSku}</div>
-            <div class="ext-flex-item">${item.masterQty}</div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
-        </div>
-        ${item.listings.map( listing => extTableRowListing( listing )).join('')}
+        <option>${value}</option>
     `;
 };
-const extTableRowListing = function( item ){
+
+const extMasterSku = function( item, optionsString ){
+    return `
+        <div class="masterItem" style="border: 1px solid red;">
+            <div class="ext-flex masterItemRow" data-masterid="${item.id}">
+                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Split</a></div>
+                <div class="ext-flex-item--full">${item.masterSku}</div>
+                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
+                <div class="ext-flex-item--full hide-on-create">
+                    <select>
+                        ${optionsString.join('')}
+                    </select>
+                </div>
+                <div class="ext-flex-item">${item.masterQty}</div>
+                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
+            </div>
+            <div class="listings-container">
+                <!-- /* ${item.listings.map( listing => extListingSku( listing )).join('')} */ -->
+            </div>
+        </div>
+
+    `;
+};
+const extListingSku = function( item ){
     return `
         <div class="ext-flex" data-masterid="${item.parent}">
             <div class="ext-flex-item"><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></div>
             <div class="ext-flex-item--full">+  ${item.id}</div>
             <div class="ext-flex-item"><input type="checkbox" /></div>
             <div class="ext-flex-item--full">${item.listingSku}</div>
-            <div class="ext-flex-item">${item.listingQty}</div>
+            <div class="ext-flex-item"><input type="text" value="${item.listingQty}" /></div>
             <div class="ext-flex-item"><input type="checkbox" /></div>
         </div>
     `;
 };
 
-function extModalTable( data ){
+const extModalTable = function( data ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
         <div class="ext-flex">
@@ -61,9 +98,11 @@ function extModalTable( data ){
             <div class="ext-flex-item">Quantity</div>
             <div class="ext-flex-item">LTL?</div>
         </div>
-        ${data.items.map( item => extTableRowMaster( item )).join('')}
+        <div class="master-sku-row-container"></div>
     `;
-}
+};
+
+// ${data.items.map( item => extMasterSku( item )).join('')}
 
 function extModalTemplate(){
     return `
@@ -100,7 +139,7 @@ class ItemObject {
     addListing(){
         let newListing = new ListingObject({ sku: this.masterSku, qty: "0", parent: this.id });
         this.listings.push( newListing );
-        return newListing;
+        return this;
     }
     removeListing( listingId ){
         let item = this.listings.find( listing => listing.id === listingId );
@@ -139,11 +178,6 @@ class InjectScript {
         $(document).on('click', '#ordersGrid', (e) => {
             console.log( 'a thing was clicked' );
         });
-        // Click on Save in modal while adding item to existing PO or editing
-        // $(document).on('click', 'div[aria-describedby=poItemDialog] button:contains(Save)', (e) => {
-        //     console.log( 'the button in the dialog box was clicked' );
-        //     this.checkGridStatus();
-        // });
         // Open Manage PO Modal
         $(document).on('click', '#managePoItem', (e) => {
             e.preventDefault();
@@ -154,12 +188,9 @@ class InjectScript {
             let el = $( e.currentTarget );
             let id = el.data( 'itemid' ).toString();
             let masterItem = this.data.items.find( item => item.id === id );
+            let newMasterItem = masterItem.addListing();
 
-            masterItem.addListing();
-
-            this.tableRender();
-
-            console.log( JSON.stringify( this.data, null, 4 ) );
+            this.rowRender( newMasterItem );
         });
         $(document).on('click', '.deleteRow', (e) => {
             e.preventDefault();
@@ -167,12 +198,9 @@ class InjectScript {
             let id = el.data( 'itemid' ).toString();
             let masterItem = this.data.items.find( item => item.id === id );
             let listingId = el.data( 'listingid' ).toString();
+            let newMasterItem = masterItem.removeListing( listingId );
 
-            masterItem.removeListing( listingId );
-
-            this.tableRender();
-
-            console.log( JSON.stringify( this.data, null, 4 ) );
+            this.rowRender( newMasterItem );
         });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
@@ -181,7 +209,6 @@ class InjectScript {
         });
     }
     manageModal() {
-        console.log( this.data );
         $('body').append('<div id="ext-modal"></div>' );
         $('#ext-modal').html( extModalTemplate());
         this.tableRender();
@@ -191,18 +218,35 @@ class InjectScript {
         if( el.length ){
             // Render table
             el.html( extModalTable( this.data ) );
-            let count = 1;
-
-            // TODO fix this
-            el.find( 'tr.masterItem' ).each( (idx, masterItem) => {
-                let id = $( masterItem ).data( 'masterid' );
-                let color = '#ccc';
-                if( count%2 === 1 ){
-                    color = '#eee';
-                }
-                $( `[data-masterid=${id}]` ).css( 'background', color );
-                count++;
+            this.data.items.forEach( item => {
+                let optionsString = [];
+                ajax( item.masterSku ).then( listings => {
+                    listings.forEach( listing => {
+                        optionsString.push( extListings( listing.listingSku ) );
+                    });
+                    el.find( '.master-sku-row-container' ).append( extMasterSku( item, optionsString ) );
+                    el.find( '.masterItem' ).each( (idx, row) => {
+                        $( row ).find( 'select' ).select2({
+                            dropdownParent: el,
+                        });
+                    });
+                });
             });
+        }
+    }
+    rowRender( master ){
+        let rows = master.listings.map( item => extListingSku( item )).join('');
+        let masterRow = $(`.masterItemRow[data-masterid=${master.id}]`);
+        let listingContainer = masterRow.next( '.listings-container' );
+        listingContainer.html( rows );
+        // masterRow.find( 'select' ).select2({
+        //     dropdownParent: masterRow
+        // });
+        if( master.listings.length > 1 ){
+            listingContainer.show();
+            masterRow.find( '.hide-on-create' ).css( 'opacity', 0);
+        } else {
+            masterRow.find( '.hide-on-create' ).css( 'opacity', 1);
         }
     }
     setUpNotes(){
@@ -392,7 +436,7 @@ const extInternalNoteMsg = function(){
     `;
 };
 
-function extButton(){
+const extButton = function(){
     return `
         <button id="managePoItem" style="margin-bottom: 5px; width:70px;"
             class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
@@ -400,7 +444,7 @@ function extButton(){
             <span class="ui-button-text">Manage</span>
         </button>
     `;
-}
+};
 
 let injectScript = new InjectScript();
 //# sourceMappingURL=inject.js.map
