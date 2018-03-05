@@ -16,11 +16,12 @@
     },
     "content_scripts" : [
         {
-            "css" : ["main.css"],
+            "css" : ["main.css", "libs/css/select2.css"],
             "matches": ["https://app.skubana.com/work/po*"],
             "js": [
-                "libs/jquery-3.3.1.slim.min.js",
+                "libs/jquery-3.3.1.min.js",
                 "libs/MutationSummary.js",
+                "libs/select2.js",
                 "injected.js"
             ]
         }
