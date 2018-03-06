@@ -1,118 +1,6 @@
 console.clear();
 console.log( '***** Content Script ******' );
 
-function makeRequest (method, url, done, error) {
-    var xhr = new XMLHttpRequest();
-
-    xhr.open(method, url);
-    xhr.setRequestHeader( 'Authorization', 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a');
-    xhr.onload = function () {
-        done(xhr.response);
-    };
-    xhr.onerror = function () {
-        error(xhr.response);
-    };
-    xhr.send();
-}
-
-function ajax(sku) {
-    return new Promise(function(resolve, reject) {
-        $.ajax({
-            url: `https://app.skubana.com/service/v1/listings`,
-            headers: {
-                'Authorization': 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a'
-            },
-            data: { masterSku: sku },
-            success: function( response ){
-                resolve( response );
-            },
-            error: function( response ){
-                reject( response );
-            }
-        });
-    });
-}
-
-
-
-function tryParseJSON (jsonString){
-    try {
-        var o = JSON.parse(jsonString);
-        if (o && typeof o === "object") {
-            return o;
-        }
-    }
-    catch (e) { }
-    return false;
-}
-
-const extListings = function( value ){
-    return `
-        <option>${value}</option>
-    `;
-};
-
-const extMasterSku = function( item, optionsString ){
-    return `
-        <div class="masterItem" style="border: 1px solid red;">
-            <div class="ext-flex masterItemRow" data-masterid="${item.id}">
-                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Split</a></div>
-                <div class="ext-flex-item--full">${item.masterSku}</div>
-                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
-                <div class="ext-flex-item--full hide-on-create">
-                    <select>
-                        ${optionsString.join('')}
-                    </select>
-                </div>
-                <div class="ext-flex-item">${item.masterQty}</div>
-                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
-            </div>
-            <div class="listings-container">
-                <!-- /* ${item.listings.map( listing => extListingSku( listing )).join('')} */ -->
-            </div>
-        </div>
-
-    `;
-};
-const extListingSku = function( item ){
-    return `
-        <div class="ext-flex" data-masterid="${item.parent}">
-            <div class="ext-flex-item"><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></div>
-            <div class="ext-flex-item--full">+  ${item.id}</div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
-            <div class="ext-flex-item--full">${item.listingSku}</div>
-            <div class="ext-flex-item"><input type="text" value="${item.listingQty}" /></div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
-        </div>
-    `;
-};
-
-const extModalTable = function( data ){
-    return `
-        <p><strong>PO #: </strong> - ${data.id}</p>
-        <div class="ext-flex">
-            <div class="ext-flex-item"></div>
-            <div class="ext-flex-item--full">Master SKU</div>
-            <div class="ext-flex-item">Send to FBA?</div>
-            <div class="ext-flex-item--full">Listing SKU</div>
-            <div class="ext-flex-item">Quantity</div>
-            <div class="ext-flex-item">LTL?</div>
-        </div>
-        <div class="master-sku-row-container"></div>
-    `;
-};
-
-// ${data.items.map( item => extMasterSku( item )).join('')}
-
-function extModalTemplate(){
-    return `
-        <div id="ext-modal__inner">
-            <span class="ext-modal-close">Close</span>
-            <div class="modal__content"></div>
-        </div>
-    `;
-}
-
 class PoObject {
     constructor() {
         console.log("PO Object Created");
@@ -133,8 +21,10 @@ class ItemObject {
             qty: options.masterQty,
             parent: options.id
         };
+        let fake = Object.assign( {}, listingOpts );
+        fake.qty = "600";
         this.listings = [];
-        this.listings.push( new ListingObject( listingOpts ) );
+        this.listings.push( new ListingObject( listingOpts ), new ListingObject( fake ) );
     }
     addListing(){
         let newListing = new ListingObject({ sku: this.masterSku, qty: "0", parent: this.id });
@@ -181,7 +71,7 @@ class InjectScript {
         // Open Manage PO Modal
         $(document).on('click', '#managePoItem', (e) => {
             e.preventDefault();
-            this.manageModal();
+            this.openManageModal();
         });
         $(document).on('click', '.createNew', (e) => {
             e.preventDefault();
@@ -190,7 +80,7 @@ class InjectScript {
             let masterItem = this.data.items.find( item => item.id === id );
             let newMasterItem = masterItem.addListing();
 
-            this.rowRender( newMasterItem );
+            this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
         $(document).on('click', '.deleteRow', (e) => {
             e.preventDefault();
@@ -200,7 +90,7 @@ class InjectScript {
             let listingId = el.data( 'listingid' ).toString();
             let newMasterItem = masterItem.removeListing( listingId );
 
-            this.rowRender( newMasterItem );
+            this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
@@ -208,46 +98,64 @@ class InjectScript {
             $('#ext-modal').remove();
         });
     }
-    manageModal() {
+    openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
         $('#ext-modal').html( extModalTemplate());
-        this.tableRender();
+        this.listingsForMaster = {};
+        let self = this;
+
+        async function getListingsForMaster( item ){
+            let result = await ajax(item.masterSku);
+            result.unshift( {listingSku: item.id}, {listingSku: `${item.id}-second`} );
+            result.push( {listingSku: `${item.id}-third`} );
+            self.listingsForMaster[item.id] = result;
+        }
+        async function processMasters( array ){
+            const promises = array.map( getListingsForMaster );
+            await Promise.all( promises );
+            self.renderTable();
+        }
+        processMasters( this.data.items );
     }
-    tableRender(){
+    renderTable(){
         let el = $('.modal__content');
         if( el.length ){
             // Render table
             el.html( extModalTable( this.data ) );
-            this.data.items.forEach( item => {
-                let optionsString = [];
-                ajax( item.masterSku ).then( listings => {
-                    listings.forEach( listing => {
-                        optionsString.push( extListings( listing.listingSku ) );
-                    });
-                    el.find( '.master-sku-row-container' ).append( extMasterSku( item, optionsString ) );
-                    el.find( '.masterItem' ).each( (idx, row) => {
-                        $( row ).find( 'select' ).select2({
-                            dropdownParent: el,
-                        });
-                    });
-                });
+            let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
+            let optionsString = item => this.listingsForMaster[item.id].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
+            let templates = this.data.items.map( item => extMasterSku(item, optionsString( item ) ) );
+            el.find('.master-sku-container').html( templates.join('') );
+
+            el.find( 'select' ).select2({
+                dropdownParent: el
             });
         }
     }
-    rowRender( master ){
-        let rows = master.listings.map( item => extListingSku( item )).join('');
+    // renderMaster( master, optionsString ){
+    //     let el = $('.master-sku-container');
+    //     el.append( extMasterSku( master, optionsString ) ).find('.masterItemRow select').select2({
+    //         dropdownParent: $('.masterItemRow')
+    //     });
+    //     this.renderListing( master, optionsString );
+    // }
+    renderListing( master ){
+        let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
+        let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
+        let rows = master.listings.map( item => extListingSku( item, optionsString( item ) )).join('');
         let masterRow = $(`.masterItemRow[data-masterid=${master.id}]`);
         let listingContainer = masterRow.next( '.listings-container' );
         listingContainer.html( rows );
-        // masterRow.find( 'select' ).select2({
-        //     dropdownParent: masterRow
-        // });
-        if( master.listings.length > 1 ){
-            listingContainer.show();
-            masterRow.find( '.hide-on-create' ).css( 'opacity', 0);
-        } else {
-            masterRow.find( '.hide-on-create' ).css( 'opacity', 1);
-        }
+        listingContainer.find('select').select2({
+            dropdownParent: listingContainer
+        });
+
+        // if( master.listings.length > 1 ){
+        //     listingContainer.show();
+        //     masterRow.find( '.hide-on-create' ).css( 'opacity', 0);
+        // } else {
+        //     masterRow.find( '.hide-on-create' ).css( 'opacity', 1);
+        // }
     }
     setUpNotes(){
         // Diable #internalNotes
@@ -264,7 +172,7 @@ class InjectScript {
         let notesVal = $('#internalNotes').val();
         let validJson = tryParseJSON( notesVal );
         if( validJson ){
-            return this.validateJson( validJson );
+            return validateJson( validJson );
         } else {
             let msg = 'the internal notes were not valid json.';
                 msg += 'Value of #internalNotes will be added to this.data.additionalNotes.';
@@ -275,74 +183,10 @@ class InjectScript {
             return false;
         }
     }
-    validateJson( value ){
-        let errors = [];
 
-        if( ! value.hasOwnProperty( 'id' ) ){
-            errors.push( 'id is broken' );
-        } else {
-            if( typeof value.id != 'string' ){
-                errors.push( 'id is not a string' );
-            }
-        }
-
-        if( ! value.hasOwnProperty( 'items' ) ){
-            errors.push( 'items is broken' );
-        } else {
-            if( ! Array.isArray( value.items ) ){
-                errors.push( 'items is not an array' );
-            } else {
-                value.items.forEach((item, idx) => {
-                    if( ! item.hasOwnProperty( 'id' ) ){
-                        errors.push( '-item ' + idx + ' is missing id' );
-                    }
-                    if( ! item.hasOwnProperty( 'vendorSku' ) ){
-                        errors.push( '-item ' + idx + ' is missing vendorSku' );
-                    }
-                    if( ! item.hasOwnProperty( 'masterQty' ) ){
-                        errors.push( '-item ' + idx + ' is missing masterQty' );
-                    }
-                    if( ! item.hasOwnProperty( 'listings' ) ){
-                        errors.push( '-item ' + idx + ' is missing listings' );
-                    } else {
-                        if( ! Array.isArray( item.listings ) ){
-                            errors.push( '-item ' + idx + ' is not an array' );
-                        } else {
-                            item.listings.forEach((listing, key) => {
-                                if( ! listing.hasOwnProperty( 'listingSku' ) ){
-                                    errors.push( '-- ' + key + ' is missing listingSku' );
-                                }
-                                if( ! listing.hasOwnProperty( 'listingQty' ) ){
-                                    errors.push( '-- ' + key + ' is missing listingQty' );
-                                }
-                                if( ! listing.hasOwnProperty( 'sendToFBA' ) ){
-                                    errors.push( '-- ' + key + ' is missing sendToFBA' );
-                                }
-                                if( ! listing.hasOwnProperty( 'ltl' ) ){
-                                    errors.push( '-- ' + key + ' is missing ltl' );
-                                }
-
-                            });
-                        }
-                    }
-                });
-            }
-        }
-
-        if( ! value.hasOwnProperty( 'additionalNotes' ) ){
-            errors.push( 'additionalNotes is broken' );
-        }
-
-        if( errors.length > 0 ){
-            alert( 'Something is wrong: \n-' + errors.join( '\n-' ) );
-        } else {
-            console.log( 'the json from the notes is valid and ready to be updated' );
-            return value;
-        }
-    }
     // So far, this should only be for editing an exiting PO. Will need to edit this, rebuild for new POs
     updateDetails( summary ){
-        this.waitFor( '#poItemsGrid' ).then( (container) => {
+        waitFor( '#poItemsGrid' ).then( (container) => {
             console.log( 'poItemsGrid has been (re)rendered' );
             this.setUpNotes();
             this.data = this.checkNotes();
@@ -378,73 +222,7 @@ class InjectScript {
             // }
         });
     }
-    waitFor(selector) {
-        return new Promise((resolve) => {
-            let resolved = false;
-            let element = $(selector, document).get(0);
-            if (element) {
-                resolve(element);
-            }
-            else {
-                let observer = new MutationObserver(function () {
-                    if (resolved === false) {
-                        element = $(selector, document).get(0);
-                        if (element) {
-                            resolve(element);
-                            observer.disconnect();
-                            resolved = true;
-                        }
-                    }
-                });
-                observer.observe(document, {
-                    childList: true,
-                    subtree: true,
-                });
-            }
-        });
-    }
-    wait(time) {
-        return new Promise((resolve) => {
-            setTimeout(resolve, time);
-        });
-    }
 }
-
-function formatMoney(val) {
-    return `$${commafy(val)}`;
-}
-function parseMoney(val) {
-    return parseInt(val.replace("$", "").replace(/,/g, ""));
-}
-function commafy(num) {
-    if (!num) {
-        return "0";
-    }
-    let str = num.toString().split('.');
-    if (str[0].length >= 5) {
-        str[0] = str[0].replace(/(\d)(?=(\d{3})+$)/g, '$1,');
-    }
-    if (str[1] && str[1].length >= 5) {
-        str[1] = str[1].replace(/(\d{3})/g, '$1 ');
-    }
-    return str.join('.');
-}
-
-const extInternalNoteMsg = function(){
-    return `
-        <p class="ext-notice">Internal Notes has been disabled. Please use the Manage button to add notes.</p>
-    `;
-};
-
-const extButton = function(){
-    return `
-        <button id="managePoItem" style="margin-bottom: 5px; width:70px;"
-            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
-            <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
-            <span class="ui-button-text">Manage</span>
-        </button>
-    `;
-};
 
 let injectScript = new InjectScript();
 //# sourceMappingURL=inject.js.map
