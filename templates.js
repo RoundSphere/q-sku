@@ -56,6 +56,9 @@ const extModalTable = function( data ){
             <div class="ext-flex-item">LTL?</div>
         </div>
         <div class="master-sku-container"></div>
+        <div class="ext-btn-container">
+            <a href="#" class="ext-btn" id="savePoDetails">Save</a>
+        </div>
     `;
 };
 

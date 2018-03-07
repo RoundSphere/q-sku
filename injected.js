@@ -21,10 +21,8 @@ class ItemObject {
             qty: options.masterQty,
             parent: options.id
         };
-        let fake = Object.assign( {}, listingOpts );
-        fake.qty = "600";
         this.listings = [];
-        this.listings.push( new ListingObject( listingOpts ), new ListingObject( fake ) );
+        this.listings.push( new ListingObject( listingOpts ) );
     }
     addListing(){
         let newListing = new ListingObject({ sku: this.masterSku, qty: "0", parent: this.id });
@@ -59,7 +57,7 @@ class InjectScript {
         console.log("InjectScript loaded");
         this.registerEventHandlers();
         this.observer = new MutationSummary({
-            callback: () => this.updateDetails(),
+            callback: () => this.poLoaded(),
             queries: [{ element: '#poItemsGrid' }]
         });
     }
@@ -92,6 +90,10 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
+        $(document).on('click', '#savePoDetails', (e) => {
+            e.preventDefault();
+            this.savePoDetails();
+        });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
@@ -106,8 +108,6 @@ class InjectScript {
 
         async function getListingsForMaster( item ){
             let result = await ajax(item.masterSku);
-            result.unshift( {listingSku: item.id}, {listingSku: `${item.id}-second`} );
-            result.push( {listingSku: `${item.id}-third`} );
             self.listingsForMaster[item.id] = result;
         }
         async function processMasters( array ){
@@ -132,13 +132,6 @@ class InjectScript {
             });
         }
     }
-    // renderMaster( master, optionsString ){
-    //     let el = $('.master-sku-container');
-    //     el.append( extMasterSku( master, optionsString ) ).find('.masterItemRow select').select2({
-    //         dropdownParent: $('.masterItemRow')
-    //     });
-    //     this.renderListing( master, optionsString );
-    // }
     renderListing( master ){
         let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
         let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
@@ -149,13 +142,6 @@ class InjectScript {
         listingContainer.find('select').select2({
             dropdownParent: listingContainer
         });
-
-        // if( master.listings.length > 1 ){
-        //     listingContainer.show();
-        //     masterRow.find( '.hide-on-create' ).css( 'opacity', 0);
-        // } else {
-        //     masterRow.find( '.hide-on-create' ).css( 'opacity', 1);
-        // }
     }
     setUpNotes(){
         // Diable #internalNotes
@@ -183,44 +169,74 @@ class InjectScript {
             return false;
         }
     }
-
-    // So far, this should only be for editing an exiting PO. Will need to edit this, rebuild for new POs
-    updateDetails( summary ){
+    poLoaded(){
         waitFor( '#poItemsGrid' ).then( (container) => {
             console.log( 'poItemsGrid has been (re)rendered' );
-            this.setUpNotes();
-            this.data = this.checkNotes();
-
-            if( ! this.data ){
-                this.data = new PoObject();
-            }
-
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html(extButton());
 
-            let rows = $( container ).find( 'tr' );
-            function getCell( value ){
-                return $( rows[i] ).find( '[aria-describedby=poItemsGrid_' + value + ']' ).text();
-            }
-            for( var i = 1, rowLength = rows.length; i<rowLength; i++ ){
-                let cells = rows[i].cells;
-                let options = {
-                    id: getCell( 'itemId' ),
-                    masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
-                    vendorSku: getCell( 'vendorSku' ),
-                    masterQty: getCell( 'itemQuantity' )
-                };
-                this.data.items.push( new ItemObject( options ) );
-            }
+            this.setUpNotes();
+            this.data = this.checkNotes();
 
-            console.log( JSON.stringify( this.data, null, 4 ));
+            let tableValues = this.getTableValues( container );
 
-            // var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
-            // if( confirmUpdate ){
-            //     console.log( 'Update confirmed' );
-            //     $('#internalNotes').val( JSON.stringify( this.data ) ) ;
-            // }
+            if( ! this.data ){
+                this.data = new PoObject();
+                this.data.items = this.createMasterSkus( tableValues );
+            } else {
+                this.checkPoForUpdate( tableValues );
+            }
         });
+    }
+
+    getTableValues( container ){
+        console.log( 'get master skus from table');
+        let rows = Array.from( $( container ).find( 'tr' ) ).filter( (row, idx) => idx > 0 );
+        let masterSkusFromTable = rows.map( item => {
+            function getCell( value ){
+                return $( item ).find( `td[aria-describedby=poItemsGrid_${value}]` ).text();
+            }
+            return {
+                id: getCell( 'itemId' ),
+                masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
+                masterQty: getCell( 'itemQuantity' )
+            };
+        });
+        return masterSkusFromTable;
+    }
+    createMasterSkus(values){
+        return values.map( item => new ItemObject( item ) );
+    }
+    checkPoForUpdate( tableValues ){
+        let tableLength = tableValues.length;
+        let dataset = this.data.items;
+        let datasetLength = dataset.length;
+
+        console.log( tableLength, datasetLength );
+        console.log( dataset );
+        if( tableLength > datasetLength ){
+            console.log( '> an item has been added -> add to dataset' );
+            let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
+            // TODO Alow for multiple
+            dataset.push( new ItemObject( added[0] ) );
+            console.log( dataset );
+        } else if( datasetLength > tableLength ){
+            console.log( '> an item has been deleted -> remove from dataset');
+        } else {
+            console.log( 'lengths are equal -> check quantities' );
+        }
+    }
+
+    savePoDetails(){
+        var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
+        if( confirmUpdate ){
+            $('#internalNotes').val( JSON.stringify( this.data ) ) ;
+        }
+    }
+
+    // So far, this should only be for editing an exiting PO. Will need to edit this, rebuild for new POs
+    updateDetails(){
+
     }
 }
 

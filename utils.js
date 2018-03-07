@@ -1,17 +1,3 @@
-function makeRequest (method, url, done, error) {
-    var xhr = new XMLHttpRequest();
-
-    xhr.open(method, url);
-    xhr.setRequestHeader( 'Authorization', 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a');
-    xhr.onload = function () {
-        done(xhr.response);
-    };
-    xhr.onerror = function () {
-        error(xhr.response);
-    };
-    xhr.send();
-}
-
 function ajax(sku) {
     return new Promise(function(resolve, reject) {
         $.ajax({
@@ -81,9 +67,6 @@ function validateJson( value ){
             value.items.forEach((item, idx) => {
                 if( ! item.hasOwnProperty( 'id' ) ){
                     errors.push( '-item ' + idx + ' is missing id' );
-                }
-                if( ! item.hasOwnProperty( 'vendorSku' ) ){
-                    errors.push( '-item ' + idx + ' is missing vendorSku' );
                 }
                 if( ! item.hasOwnProperty( 'masterQty' ) ){
                     errors.push( '-item ' + idx + ' is missing masterQty' );
