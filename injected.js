@@ -2,30 +2,30 @@ console.clear();
 console.log( '***** Content Script ******' );
 
 class PoObject {
-    constructor() {
-        console.log("PO Object Created");
-        this.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
-        this.items = [];
-        this.additionalNotes = '';
+    constructor( options ) {
+        let items  = options.items;
+        this.id    = options.id;
+        this.items = items ? items.map( item => new ItemObject( item ) ) : [];
+        this.additionalNotes = options.additionalNotes || '';
     }
 }
 class ItemObject {
     constructor( options ){
-        console.log("Item Object Created");
+        console.log("> Item Object Created");
         this.id        = options.id;
         this.masterSku = options.masterSku;
         this.masterQty = options.masterQty;
 
         let listingOpts = {
-            sku: options.masterSku,
-            qty: options.masterQty,
-            parent: options.id
+            masterSku  : options.masterSku,
+            listingQty : options.masterQty,
+            parent     : options.id
         };
-        this.listings = [];
-        this.listings.push( new ListingObject( listingOpts ) );
+        let listings  = options.listings;
+        this.listings = listings ? listings.map( listing => new ListingObject( listing ) ) : [ new ListingObject( listingOpts ) ];
     }
     addListing(){
-        let newListing = new ListingObject({ sku: this.masterSku, qty: "0", parent: this.id });
+        let newListing = new ListingObject({ masterSku: this.masterSku, listingQty: "0", parent: this.id });
         this.listings.push( newListing );
         return this;
     }
@@ -41,13 +41,13 @@ class ItemObject {
 }
 class ListingObject{
     constructor( options ){
-        console.log("Listing Object Created");
-        this.id         = options.parent + '_' + Date.now();
-        this.masterSku  = options.sku;
-        this.listingSku = options.sku;
-        this.listingQty = options.qty;
-        this.sendToFBA  = true;
-        this.ltl        = true;
+        // console.log("Listing Object Created");
+        this.id         = options.id || options.parent + '_' + Date.now();
+        this.masterSku  = options.masterSku;
+        this.listingSku = options.listingSku || options.masterSku;
+        this.listingQty = options.listingQty;
+        this.sendToFBA  = options.sendToFBA || true;
+        this.ltl        = options.ltl || true;
         this.parent     = options.parent;
     }
 }
@@ -64,7 +64,7 @@ class InjectScript {
     registerEventHandlers() {
         // Click on an invoice in ordersGrid
         $(document).on('click', '#ordersGrid', (e) => {
-            console.log( 'a thing was clicked' );
+            // console.log( 'a thing was clicked' );
         });
         // Open Manage PO Modal
         $(document).on('click', '#managePoItem', (e) => {
@@ -154,20 +154,23 @@ class InjectScript {
             currentNotesString += `Current Notes: ${$('#internalNotes').val()}</p>`;
         $('#internalNotes').before( currentNotesString );
     }
-    checkNotes(){
+    checkNotes( poId ){
         let notesVal = $('#internalNotes').val();
-        let validJson = tryParseJSON( notesVal );
-        if( validJson ){
-            return validateJson( validJson );
-        } else {
-            let msg = 'the internal notes were not valid json.';
-                msg += 'Value of #internalNotes will be added to this.data.additionalNotes.';
-            if( ! notesVal ){
-                msg = 'Notes were empty. They need to be created for the first time';
+        let data = {};
+        if( notesVal ){
+            let validJson = tryParseJSON( notesVal );
+            if( validJson ){
+                data = validateJson( validJson );
+            } else {
+                console.log( 'notes were not json' );
+                data = { id: poId, additionalNotes: notesVal };
             }
-            // alert( msg );
-            return false;
+        } else {
+            console.log( 'no notes. create them' );
+            data = { id: poId };
         }
+
+        return new PoObject( data );
     }
     poLoaded(){
         waitFor( '#poItemsGrid' ).then( (container) => {
@@ -175,17 +178,15 @@ class InjectScript {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html(extButton());
 
+            let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+
             this.setUpNotes();
-            this.data = this.checkNotes();
+            this.data = this.checkNotes( poId );
 
             let tableValues = this.getTableValues( container );
+            this.checkPoForUpdate( tableValues );
 
-            if( ! this.data ){
-                this.data = new PoObject();
-                this.data.items = this.createMasterSkus( tableValues );
-            } else {
-                this.checkPoForUpdate( tableValues );
-            }
+            console.log( this.data );
         });
     }
 
@@ -199,31 +200,57 @@ class InjectScript {
             return {
                 id: getCell( 'itemId' ),
                 masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
-                masterQty: getCell( 'itemQuantity' )
+                masterQty: getCell( 'itemQuantity' ).replace( ',', '' )
             };
         });
         return masterSkusFromTable;
     }
-    createMasterSkus(values){
-        return values.map( item => new ItemObject( item ) );
-    }
     checkPoForUpdate( tableValues ){
-        let tableLength = tableValues.length;
         let dataset = this.data.items;
-        let datasetLength = dataset.length;
+        let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
+        let removed = dataset.filter( data => tableValues.map( item => item.id ).indexOf( data.id ) === -1 );
+        let somethingChanged = false;
 
-        console.log( tableLength, datasetLength );
-        console.log( dataset );
-        if( tableLength > datasetLength ){
+        if( added.length ){
+            somethingChanged = true;
             console.log( '> an item has been added -> add to dataset' );
-            let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
-            // TODO Alow for multiple
-            dataset.push( new ItemObject( added[0] ) );
-            console.log( dataset );
-        } else if( datasetLength > tableLength ){
+            added.forEach( item => dataset.push( new ItemObject( item ) ) );
+        }
+        if( removed.length ){
+            somethingChanged = true;
             console.log( '> an item has been deleted -> remove from dataset');
-        } else {
-            console.log( 'lengths are equal -> check quantities' );
+            removed.forEach( item => {
+                let index = dataset.indexOf( item );
+                if( index > -1 ){
+                    dataset.splice( index, 1 );
+                }
+            });
+        }
+
+        // Check quantities
+        let quantitiesCorrect = true;
+        tableValues.forEach( value => {
+            let datasetItem = dataset.find( item => item.id === value.id );
+            if( value.masterQty != datasetItem.masterQty ){
+                quantitiesCorrect = false;
+                somethingChanged = true;
+                console.log(  `> quantities dont match for ${value.id} -> update qty in dataset` );
+                datasetItem.masterQty = value.masterQty;
+                console.log( '>> quantity has been updated -> check for listings.' );
+                if( datasetItem.listings.length > 1 ){
+                    console.log( `>>> the master quantity of ${datasetItem.id} (${datasetItem.masterSku}) was changed. Now the listing quantities are wrong.` );
+                    this.openManageModal();
+                } else {
+                    datasetItem.listings[0].listingQty = datasetItem.masterQty;
+                }
+            }
+        });
+        if( quantitiesCorrect ){
+            console.log( '>>> all qtys are correct');
+        }
+
+        if( somethingChanged ){
+            this.savePoDetails();
         }
     }
 
@@ -232,11 +259,10 @@ class InjectScript {
         if( confirmUpdate ){
             $('#internalNotes').val( JSON.stringify( this.data ) ) ;
         }
-    }
-
-    // So far, this should only be for editing an exiting PO. Will need to edit this, rebuild for new POs
-    updateDetails(){
-
+        let really = confirm( 'This should actually save the details. Are really sure? This can\'t be undone.' );
+        if( really ){
+            $('button#updatePoDetails').trigger( 'click' );
+        }
     }
 }
 
