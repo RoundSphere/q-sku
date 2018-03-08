@@ -28,7 +28,7 @@ div[aria-describedby=poItemDialog] {
     transform: translate( -50%, -50% );
 }
 #ext-modal__inner select,
-#ext-modal__inner input {
+#ext-modal__inner input[type="text"] {
     width: 100%;
     max-width: 100%;
 }
@@ -42,10 +42,16 @@ div[aria-describedby=poItemDialog] {
     color: #e44;
 }
 
+.ext-title {
+    padding: 10px 5px;
+    background: #ccc;
+}
+
 /* Flexbox styles for Listings */
 .ext-flex {
     display: flex;
     align-items: center;
+    padding: 5px 0;
 }
 .ext-flex-item--full {
     flex: 1 1 100%;
@@ -53,9 +59,10 @@ div[aria-describedby=poItemDialog] {
     box-sizing: border-box;
 }
 .ext-flex-item {
-    flex: 0 0 60px;
-    padding: 3px;
+    flex: 0 0 100px;
+    padding: 3px 10px;
     box-sizing: border-box;
+    text-align: center;
 }
 
 .masterItem {
@@ -63,14 +70,11 @@ div[aria-describedby=poItemDialog] {
     border: 1px solid #ccc;
     box-sizing: border-box;
 }
-.masterItemRow {
-    background: #ccc;
-}
 .listingSku {
-    background: #efefef;
+    background: #fefefe;
 }
 .listingSku:nth-child( odd ){
-    background: #fefefe;
+    background: #efefef;
 }
 
 .master-sku-container {

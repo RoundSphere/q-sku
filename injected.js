@@ -75,7 +75,7 @@ class InjectScript {
             e.preventDefault();
             let el = $( e.currentTarget );
             let id = el.data( 'itemid' ).toString();
-            let masterItem = this.data.items.find( item => item.id === id );
+            let masterItem = this.tempData.items.find( item => item.id === id );
             let newMasterItem = masterItem.addListing();
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
@@ -84,21 +84,48 @@ class InjectScript {
             e.preventDefault();
             let el = $( e.currentTarget );
             let id = el.data( 'itemid' ).toString();
-            let masterItem = this.data.items.find( item => item.id === id );
+            let masterItem = this.tempData.items.find( item => item.id === id );
             let listingId = el.data( 'listingid' ).toString();
             let newMasterItem = masterItem.removeListing( listingId );
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
+
+        // Modal saves and validation
+
+        $(document).on('change', '#ext-modal input[data-details], #ext-modal select[data-details]', e => {
+            let input = $( e.currentTarget );
+            let listingContainer = input.closest( '.listingSku' );
+            let itemId = listingContainer.data( 'listingid' );
+            let masterId = listingContainer.data( 'masterid' );
+            let field = input.data( 'details' );
+            let value = input.val();
+            console.log( itemId, masterId, field, value );
+            this.validateInputs();
+        });
+
+
         $(document).on('click', '#savePoDetails', (e) => {
             e.preventDefault();
+            if( this.tempData ){
+                this.data = this.tempData;
+                delete this.tempData;
+            }
             this.savePoDetails();
         });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
+            delete this.tempData;
             $('#ext-modal').remove();
         });
+    }
+    validateInputs(){
+        // let listingsTotal = datasetItem.listings.map( listing => listing.listingQty ).reduce((total, value) => parseInt( total ) + parseInt( value ) );
+        // if( listingsTotal != parseInt( datasetItem.masterQty ) ){
+        //     console.log( `>>> the master quantity of ${datasetItem.id} (${datasetItem.masterSku}) was changed. Now the listing quantities are wrong.` );
+        // }
+        console.log( 'validate inputs on changed fields and parent' );
     }
     openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
@@ -109,23 +136,26 @@ class InjectScript {
         async function getListingsForMaster( item ){
             let result = await ajax(item.masterSku);
             self.listingsForMaster[item.id] = result;
+            self.listingsForMaster[item.id].push( {listingSku: 'a test', salesChannelId: 'with stuff'} );
+            self.listingsForMaster[item.id].push( {listingSku: 'another test', salesChannelId: 'with more stuff'} );
         }
         async function processMasters( array ){
             const promises = array.map( getListingsForMaster );
             await Promise.all( promises );
             self.renderTable();
         }
-        processMasters( this.data.items );
+        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
+        processMasters( this.tempData.items );
     }
     renderTable(){
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( this.data ) );
-            let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
-            let optionsString = item => this.listingsForMaster[item.id].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
-            let templates = this.data.items.map( item => extMasterSku(item, optionsString( item ) ) );
+            el.html( extModalTable( this.tempData ) );
+            let templates = this.tempData.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
+
+            this.tempData.items.forEach( item => this.renderListing( item ) );
 
             el.find( 'select' ).select2({
                 dropdownParent: el
@@ -135,9 +165,9 @@ class InjectScript {
     renderListing( master ){
         let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
         let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
-        let rows = master.listings.map( item => extListingSku( item, optionsString( item ) )).join('');
-        let masterRow = $(`.masterItemRow[data-masterid=${master.id}]`);
-        let listingContainer = masterRow.next( '.listings-container' );
+        let rows = master.listings.map( item => extListingSku( item, optionsString( item ), master.listings.length )).join('');
+        let masterRow = $(`.master__container[data-masterid=${master.id}]`);
+        let listingContainer = masterRow.find( '.listings-container' );
         listingContainer.html( rows );
         listingContainer.find('select').select2({
             dropdownParent: listingContainer

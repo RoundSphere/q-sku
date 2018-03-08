@@ -4,42 +4,35 @@ const extListingsDropdown = function( value ){
     `;
 };
 
-const extMasterSku = function( item, optionsString ){
+const extMasterSku = function( item ){
     return `
-        <div class="masterItem">
-            <div class="ext-flex masterItemRow" data-masterid="${item.id}">
+        <div class="masterItem master__container" data-masterid="${item.id}">
+            <div class="ext-title"><strong>${item.masterSku} :: Qty: ${item.masterQty}</strong></div>
+            <div class="ext-flex">
                 <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Split</a></div>
-                <div class="ext-flex-item--full">${item.masterSku}</div>
-                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
-                <div class="ext-flex-item--full hide-on-create">
-                    <select>
-                        ${optionsString}
-                    </select>
-                </div>
-                <div class="ext-flex-item">${item.masterQty}</div>
-                <div class="ext-flex-item hide-on-create"><input type="checkbox" /></div>
+                <div class="ext-flex-item--full">Listing SKU</div>
+                <div class="ext-flex-item">Quantity</div>
+                <div class="ext-flex-item">Send to FBA?</div>
+                <div class="ext-flex-item">LTL?</div>
             </div>
-            <div class="listings-container">
-                ${item.listings.map( listing => extListingSku( listing, optionsString ) ).join('')}
-            </div>
+            <div class="listings-container"></div>
         </div>
-
     `;
 };
 
-const extListingSku = function( item, optionsString ){
+const extListingSku = function( item, optionsString, listingsLength ){
+    let removeBtn = `<a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a>`;
     return `
-        <div class="ext-flex listingSku" data-masterid="${item.parent}">
-            <div class="ext-flex-item"><a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a></div>
-            <div class="ext-flex-item--full">+  ${item.id}</div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
+        <div class="ext-flex listingSku" data-masterid="${item.parent}" data-listingid="${item.id}">
+            <div class="ext-flex-item">${ listingsLength > 1 ? removeBtn : ''}</div>
             <div class="ext-flex-item--full">
-                <select>
+                <select data-details="listingSku">
                     ${optionsString}
                 </select>
             </div>
-            <div class="ext-flex-item"><input type="text" value="${item.listingQty}" /></div>
-            <div class="ext-flex-item"><input type="checkbox" /></div>
+            <div class="ext-flex-item"><input data-details="listingQty" type="text" value="${item.listingQty}" /></div>
+            <div class="ext-flex-item"><input data-details="sendToFBA" type="checkbox" /></div>
+            <div class="ext-flex-item"><input data-details="ltl" type="checkbox" /></div>
         </div>
     `;
 };
@@ -47,14 +40,6 @@ const extListingSku = function( item, optionsString ){
 const extModalTable = function( data ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
-        <div class="ext-flex">
-            <div class="ext-flex-item"></div>
-            <div class="ext-flex-item--full">Master SKU</div>
-            <div class="ext-flex-item">Send to FBA?</div>
-            <div class="ext-flex-item--full">Listing SKU</div>
-            <div class="ext-flex-item">Quantity</div>
-            <div class="ext-flex-item">LTL?</div>
-        </div>
         <div class="master-sku-container"></div>
         <div class="ext-btn-container">
             <a href="#" class="ext-btn" id="savePoDetails">Save</a>
