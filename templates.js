@@ -31,8 +31,8 @@ const extListingSku = function( item, optionsString, listingsLength ){
                 </select>
             </div>
             <div class="ext-flex-item"><input data-details="listingQty" type="text" value="${item.listingQty}" /></div>
-            <div class="ext-flex-item"><input data-details="sendToFBA" type="checkbox" /></div>
-            <div class="ext-flex-item"><input data-details="ltl" type="checkbox" /></div>
+            <div class="ext-flex-item"><input data-details="sendToFBA" type="checkbox" ${item.sendToFBA ? 'checked' : ''} /></div>
+            <div class="ext-flex-item"><input data-details="ltl" type="checkbox" ${item.ltl ? 'checked' : ''} /></div>
         </div>
     `;
 };

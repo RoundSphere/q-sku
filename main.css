@@ -70,6 +70,18 @@ div[aria-describedby=poItemDialog] {
     border: 1px solid #ccc;
     box-sizing: border-box;
 }
+.ext-error,
+.ext-error--input {
+    border: 1px solid #c00;
+}
+.ext-error::after {
+    content: 'The quantities of the listings don\'t equal the total quantity.';
+    display: block;
+    padding: 3px;
+    border-top: 1px solid #c00;
+    color: #c00;
+    font-size: 11px;
+}
 .listingSku {
     background: #fefefe;
 }
@@ -105,4 +117,8 @@ div[aria-describedby=poItemDialog] {
     border: 0;
     box-sizing: border-box;
     margin: 0;
+}
+.ext-disabled {
+    opacity: 0.6;
+    cursor: default;
 }

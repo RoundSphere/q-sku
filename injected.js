@@ -16,13 +16,14 @@ class ItemObject {
         this.masterSku = options.masterSku;
         this.masterQty = options.masterQty;
 
-        let listingOpts = {
+        let defaults = {
             masterSku  : options.masterSku,
             listingQty : options.masterQty,
-            parent     : options.id
+            parent     : options.id,
+            sendToFBA  : true
         };
         let listings  = options.listings;
-        this.listings = listings ? listings.map( listing => new ListingObject( listing ) ) : [ new ListingObject( listingOpts ) ];
+        this.listings = listings ? listings.map( listing => new ListingObject( listing ) ) : [ new ListingObject( defaults ) ];
     }
     addListing(){
         let newListing = new ListingObject({ masterSku: this.masterSku, listingQty: "0", parent: this.id });
@@ -46,8 +47,8 @@ class ListingObject{
         this.masterSku  = options.masterSku;
         this.listingSku = options.listingSku || options.masterSku;
         this.listingQty = options.listingQty;
-        this.sendToFBA  = options.sendToFBA || true;
-        this.ltl        = options.ltl || true;
+        this.sendToFBA  = options.sendToFBA;
+        this.ltl        = options.ltl;
         this.parent     = options.parent;
     }
 }
@@ -96,21 +97,31 @@ class InjectScript {
         $(document).on('change', '#ext-modal input[data-details], #ext-modal select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
-            let itemId = listingContainer.data( 'listingid' );
-            let masterId = listingContainer.data( 'masterid' );
+            let listingId = listingContainer.data( 'listingid' ).toString();
+            let masterId = listingContainer.data( 'masterid' ).toString();
             let field = input.data( 'details' );
             let value = input.val();
-            console.log( itemId, masterId, field, value );
-            this.validateInputs();
+            if( input.attr('type') === 'checkbox' ){
+                value = input[0].checked;
+            }
+            let masterItem = this.tempData.items.find( item => item.id === masterId );
+            if( masterItem ){
+                let listingItem = masterItem.listings.find( listing => listing.id === listingId );
+                if( listingItem ){
+                    listingItem[field] = value;
+                }
+                this.validateInputs(masterItem, listingItem);
+            }
+
         });
 
-
         $(document).on('click', '#savePoDetails', (e) => {
+            // TODO only allows savings if all masters are validated
             e.preventDefault();
-            if( this.tempData ){
-                this.data = this.tempData;
-                delete this.tempData;
+            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
+                return;
             }
+            this.data = this.tempData;
             this.savePoDetails();
         });
         // Close Manage PO Modal
@@ -120,12 +131,26 @@ class InjectScript {
             $('#ext-modal').remove();
         });
     }
-    validateInputs(){
-        // let listingsTotal = datasetItem.listings.map( listing => listing.listingQty ).reduce((total, value) => parseInt( total ) + parseInt( value ) );
-        // if( listingsTotal != parseInt( datasetItem.masterQty ) ){
-        //     console.log( `>>> the master quantity of ${datasetItem.id} (${datasetItem.masterSku}) was changed. Now the listing quantities are wrong.` );
-        // }
-        console.log( 'validate inputs on changed fields and parent' );
+    validateInputs(masterItem, listingItem){
+        let valid = true;
+        let listings = masterItem.listings.map( listing => listing.listingQty );
+        let listingsTotal = listings.reduce((total, value) => parseInt( total ) + parseInt( value ) );
+        let masterContainer = $(`.master__container[data-masterid=${masterItem.id}]`);
+        let input = $(`.listingSku[data-listingid=${listingItem.id}] input[data-details=listingQty]`);
+        let saveBtn = $('#savePoDetails');
+
+        if( listingsTotal != parseInt( masterItem.masterQty ) ){
+            valid = false;
+        }
+        if( ! valid ){
+            masterContainer.addClass( 'ext-error' );
+            input.addClass( 'ext-error--input' );
+            saveBtn.addClass( 'ext-disabled' );
+        } else {
+            masterContainer.removeClass( 'ext-error' );
+            input.removeClass( 'ext-error--input' );
+            saveBtn.removeClass( 'ext-disabled' );
+        }
     }
     openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
@@ -165,10 +190,13 @@ class InjectScript {
     renderListing( master ){
         let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
         let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
-        let rows = master.listings.map( item => extListingSku( item, optionsString( item ), master.listings.length )).join('');
+        let rows = master.listings.map( item => {
+            this.validateInputs( master, item );
+            return extListingSku( item, optionsString( item ), master.listings.length );
+        });
         let masterRow = $(`.master__container[data-masterid=${master.id}]`);
         let listingContainer = masterRow.find( '.listings-container' );
-        listingContainer.html( rows );
+        listingContainer.html( rows.join('') );
         listingContainer.find('select').select2({
             dropdownParent: listingContainer
         });
@@ -292,6 +320,11 @@ class InjectScript {
         let really = confirm( 'This should actually save the details. Are really sure? This can\'t be undone.' );
         if( really ){
             $('button#updatePoDetails').trigger( 'click' );
+        }
+        let modal = $('#ext-modal');
+        if( modal.length ){
+            delete this.tempData;
+            modal.remove();
         }
     }
 }
