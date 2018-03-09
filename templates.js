@@ -41,7 +41,11 @@ const extModalTable = function( data ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
         <div class="master-sku-container"></div>
+        <div class="ext-additional-notes">
+            <label>Additional Notes</label>
+            <textarea data-details="additionalNotes">${data.additionalNotes}</textarea>
         <div class="ext-btn-container">
+            <a href="#" class="ext-btn ext-btn-cancel ext-modal-close">Close</a>
             <a href="#" class="ext-btn" id="savePoDetails">Save</a>
         </div>
     `;
@@ -50,7 +54,7 @@ const extModalTable = function( data ){
 const extModalTemplate = function(){
     return `
         <div id="ext-modal__inner">
-            <span class="ext-modal-close">Close</span>
+            <!--span class="ext-modal-close ext-modal-close-icon">Close</span-->
             <div class="modal__content"></div>
         </div>
     `;

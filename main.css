@@ -17,7 +17,7 @@ div[aria-describedby=poItemDialog] {
     z-index: 111111111;
 }
 #ext-modal__inner {
-    height: 400px;
+    height: 500px;
     width: 800px;
     background: white;
     box-shadow: 0 0 2px rgba(0,0,0,0.5);
@@ -90,8 +90,9 @@ div[aria-describedby=poItemDialog] {
 }
 
 .master-sku-container {
-    height: 280px;
+    height: 345px;
     overflow: auto;
+    margin-bottom: 10px;
 }
 .ext-btn-container {
     display: flex;
@@ -121,4 +122,21 @@ div[aria-describedby=poItemDialog] {
 .ext-disabled {
     opacity: 0.6;
     cursor: default;
+}
+.ext-btn-cancel {
+    background: #c00;
+    margin-right: auto;
+}
+.ext-additional-notes label {
+    font-size: 12px;
+}
+
+.ext-additional-notes textarea {
+    border: 1px solid #ccc;
+    height: 50px;
+    width: 100%;
+    resize: none;
+    padding: 4px;
+    box-sizing: border-box;
+    background: #f4f4f4;
 }

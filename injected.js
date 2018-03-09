@@ -109,6 +109,9 @@ class InjectScript {
                 this.validateInputs();
             }
         });
+        $(document).on('change', 'textarea[data-details]', e => {
+            this.tempData.additionalNotes = $( e.currentTarget ).val();
+        });
 
         $(document).on('click', '#savePoDetails', (e) => {
             e.preventDefault();
