@@ -138,6 +138,7 @@ class InjectScript {
 
             let listingsQtys = item.listings.map( listing => listing.listingQty );
             let listingsTotal = listingsQtys.reduce( ( total, value ) => parseInt( total ) + parseInt( value ) );
+            // TODO validate for no zeros
             if( parseInt( item.masterQty ) != listingsTotal ){
                 valid = false;
                 masterValid = false;
