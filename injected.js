@@ -90,9 +90,6 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
-
-        // Modal saves and validation
-
         $(document).on('change', '#ext-modal input[data-details], #ext-modal select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
@@ -109,13 +106,11 @@ class InjectScript {
                 if( listingItem ){
                     listingItem[field] = value;
                 }
-                this.validateInputs(masterItem, listingItem);
+                this.validateInputs();
             }
-
         });
 
         $(document).on('click', '#savePoDetails', (e) => {
-            // TODO only allows savings if all masters are validated
             e.preventDefault();
             if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
                 return;
@@ -130,26 +125,24 @@ class InjectScript {
             $('#ext-modal').remove();
         });
     }
-    validateInputs(masterItem, listingItem){
+    validateInputs(){
         let valid = true;
-        let listings = masterItem.listings.map( listing => listing.listingQty );
-        let listingsTotal = listings.reduce((total, value) => parseInt( total ) + parseInt( value ) );
-        let masterContainer = $(`.master__container[data-masterid=${masterItem.id}]`);
-        let input = $(`.listingSku[data-listingid=${listingItem.id}] input[data-details=listingQty]`);
-        let saveBtn = $('#savePoDetails');
+        let masterItems = this.tempData.items;
+        masterItems.forEach( item => {
+            let masterValid = true;
+            let masterContainer = $(`.master__container[data-masterid=${item.id}]`);
+            let inputs = $(`.listingSku[data-masterid=${item.id}] input[data-details=listingQty]`);
 
-        if( listingsTotal != parseInt( masterItem.masterQty ) ){
-            valid = false;
-        }
-        if( ! valid ){
-            masterContainer.addClass( 'ext-error' );
-            input.addClass( 'ext-error--input' );
-            saveBtn.addClass( 'ext-disabled' );
-        } else {
-            masterContainer.removeClass( 'ext-error' );
-            input.removeClass( 'ext-error--input' );
-            saveBtn.removeClass( 'ext-disabled' );
-        }
+            let listingsQtys = item.listings.map( listing => listing.listingQty );
+            let listingsTotal = listingsQtys.reduce( ( total, value ) => parseInt( total ) + parseInt( value ) );
+            if( parseInt( item.masterQty ) != listingsTotal ){
+                valid = false;
+                masterValid = false;
+            }
+            masterContainer[ masterValid ? 'removeClass' : 'addClass' ]( 'ext-error' );
+            inputs[ masterValid ? 'removeClass' : 'addClass' ]( 'ext-error--input' );
+        });
+        $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
     openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
@@ -190,7 +183,7 @@ class InjectScript {
         let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
         let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
         let rows = master.listings.map( item => {
-            this.validateInputs( master, item );
+            this.validateInputs();
             return extListingSku( item, optionsString( item ), master.listings.length );
         });
         let masterRow = $(`.master__container[data-masterid=${master.id}]`);
