@@ -279,6 +279,7 @@ class InjectScript {
 
         // Check quantities
         let quantitiesCorrect = true;
+        let openManageModal = false;
         tableValues.forEach( value => {
             let datasetItem = dataset.find( item => item.id === value.id );
             if( value.masterQty != datasetItem.masterQty ){
@@ -289,7 +290,7 @@ class InjectScript {
                 console.log( '>> quantity has been updated -> check for listings.' );
                 if( datasetItem.listings.length > 1 ){
                     console.log( `>>> the master quantity of ${datasetItem.id} (${datasetItem.masterSku}) was changed. Now the listing quantities are wrong.` );
-                    this.openManageModal();
+                    openManageModal = true;
                 } else {
                     datasetItem.listings[0].listingQty = datasetItem.masterQty;
                 }
@@ -300,23 +301,27 @@ class InjectScript {
         }
 
         if( somethingChanged ){
-            this.savePoDetails();
+            this.savePoDetails( openManageModal );
         }
     }
 
-    savePoDetails(){
+    savePoDetails( openManageModal ){
         var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
         if( confirmUpdate ){
             $('#internalNotes').val( JSON.stringify( this.data ) ) ;
         }
-        let really = confirm( 'This should actually save the details. Are really sure? This can\'t be undone.' );
+        let really = confirm( 'This should actually save the details. Are you really sure? This can\'t be undone.' );
         if( really ){
             $('button#updatePoDetails').trigger( 'click' );
         }
-        let modal = $('#ext-modal');
-        if( modal.length ){
-            delete this.tempData;
-            modal.remove();
+        if( ! openManageModal ){
+            let modal = $('#ext-modal');
+            if( modal.length ){
+                delete this.tempData;
+                modal.remove();
+            }
+        } else {
+            this.openManageModal();
         }
     }
 }
