@@ -1,9 +1,9 @@
-function ajax(sku) {
+function ajax(sku, token) {
     return new Promise(function(resolve, reject) {
         $.ajax({
             url: `https://app.skubana.com/service/v1/listings`,
             headers: {
-                'Authorization': 'Bearer e576fdbf-81b2-4c9b-9e03-3f97d67a'
+                'Authorization': `Bearer ${token}`
             },
             data: { masterSku: sku },
             success: function( response ){
@@ -84,13 +84,12 @@ function validateJson( value ){
                             if( ! listing.hasOwnProperty( 'listingQty' ) ){
                                 errors.push( '-- ' + key + ' is missing listingQty' );
                             }
-                            if( ! listing.hasOwnProperty( 'sendToFBA' ) ){
-                                errors.push( '-- ' + key + ' is missing sendToFBA' );
-                            }
-                            if( ! listing.hasOwnProperty( 'ltl' ) ){
-                                errors.push( '-- ' + key + ' is missing ltl' );
-                            }
-
+                            // if( ! listing.hasOwnProperty( 'sendToFBA' ) ){
+                            //     errors.push( '-- ' + key + ' is missing sendToFBA' );
+                            // }
+                            // if( ! listing.hasOwnProperty( 'ltl' ) ){
+                            //     errors.push( '-- ' + key + ' is missing ltl' );
+                            // }
                         });
                     }
                 }

@@ -1,6 +1,3 @@
-console.clear();
-console.log( '***** Content Script ******' );
-
 class PoObject {
     constructor( options ) {
         let items  = options.items;
@@ -26,7 +23,7 @@ class ItemObject {
         this.listings = listings ? listings.map( listing => new ListingObject( listing ) ) : [ new ListingObject( defaults ) ];
     }
     addListing(){
-        let newListing = new ListingObject({ masterSku: this.masterSku, listingQty: "0", parent: this.id });
+        let newListing = new ListingObject({ masterSku: this.masterSku, listingQty: "0", parent: this.id, sendToFBA: true });
         this.listings.push( newListing );
         return this;
     }
@@ -55,6 +52,8 @@ class ListingObject{
 
 class InjectScript {
     constructor() {
+        console.clear();
+        console.log( '***** Content Script ******' );
         console.log("InjectScript loaded");
         this.registerEventHandlers();
         this.observer = new MutationSummary({
@@ -159,7 +158,7 @@ class InjectScript {
         let self = this;
 
         async function getListingsForMaster( item ){
-            let result = await ajax(item.masterSku);
+            let result = await ajax(item.masterSku, self.authToken);
             self.listingsForMaster[item.id] = result;
             self.listingsForMaster[item.id].push( {listingSku: 'a test', salesChannelId: 'with stuff'} );
             self.listingsForMaster[item.id].push( {listingSku: 'another test', salesChannelId: 'with more stuff'} );
@@ -329,5 +328,45 @@ class InjectScript {
     }
 }
 
-let injectScript = new InjectScript();
-//# sourceMappingURL=inject.js.map
+let authTokenFromStorage = chrome.storage.sync.get('authToken', item => {
+    checkToken( item.authToken );
+    return item.authToken;
+});
+
+function checkToken( authToken, response ){
+    let msg = '';
+    if( authToken ){
+        testAuth( authToken );
+    } else {
+        if( response ){
+            msg = `That token didn't work. You entered: \n\n      ${response} \n\nTry again. `;
+        }
+        let auth = prompt( `${msg}Enter the token to access the Skubana API:` );
+        if( auth ){
+            testAuth( auth );
+        } else {
+            alert('In order to use this Chrome Extension, you will need the token to access the Skubana API. \n\nThe Manage button is not available.');
+        }
+    }
+}
+
+function testAuth( token ){
+    $.ajax({
+        url: `https://app.skubana.com/service/v1/listings`,
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        data: {
+            'limit': 1
+        },
+        success: function( response ){
+            chrome.storage.sync.set({ 'authToken': token });
+            let injectScript = new InjectScript();
+            injectScript.authToken = token;
+        },
+        error: function( response ){
+            chrome.storage.sync.remove('authToken');
+            checkToken( null, token );
+        }
+    });
+}
