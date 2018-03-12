@@ -54,7 +54,6 @@ const extModalTable = function( data ){
 const extModalTemplate = function(){
     return `
         <div id="ext-modal__inner">
-            <!--span class="ext-modal-close ext-modal-close-icon">Close</span-->
             <div class="modal__content"></div>
         </div>
     `;
@@ -66,9 +65,9 @@ const extInternalNoteMsg = function(){
     `;
 };
 
-const extButton = function(){
+const extButton = function(id){
     return `
-        <button id="managePoItem" style="margin-bottom: 5px; width:70px;"
+        <button id="${id}"
             class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
             <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
             <span class="ui-button-text">Manage</span>

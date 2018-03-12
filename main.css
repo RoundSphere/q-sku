@@ -2,6 +2,7 @@
 }
 
 #internalNotes {
+    /* display: none; */
 }
 
 
@@ -31,6 +32,16 @@ div[aria-describedby=poItemDialog] {
 #ext-modal__inner input[type="text"] {
     width: 100%;
     max-width: 100%;
+}
+.ui-dialog .modal__content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: white;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 
@@ -139,4 +150,9 @@ div[aria-describedby=poItemDialog] {
     padding: 4px;
     box-sizing: border-box;
     background: #f4f4f4;
+}
+
+#managePoItems {
+    width: 70px;
+    margin-bottom: 5px;
 }

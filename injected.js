@@ -1,14 +1,14 @@
 class PoObject {
     constructor( options ) {
         let items  = options.items;
-        this.id    = options.id;
+        this.id    = options.id || '';
         this.items = items ? items.map( item => new ItemObject( item ) ) : [];
         this.additionalNotes = options.additionalNotes || '';
     }
 }
 class ItemObject {
     constructor( options ){
-        console.log("> Item Object Created");
+        // console.log("> Item Object Created");
         this.id        = options.id;
         this.masterSku = options.masterSku;
         this.masterQty = options.masterQty;
@@ -57,19 +57,44 @@ class InjectScript {
         console.log("InjectScript loaded");
         this.registerEventHandlers();
         this.observer = new MutationSummary({
-            callback: () => this.poLoaded(),
-            queries: [{ element: '#poItemsGrid' }]
+            callback: (summary) => this.handleSummary(summary),
+            queries: [{ element: '#poItemsGrid' }, { element: '#newPoItemsGrid' }]
         });
     }
+    handleSummary( summary ){
+        if( summary[1].added.length ){
+            this.poCreated();
+            return;
+        }
+        if( summary[0].added.length ){
+            this.poLoaded();
+            return;
+        }
+    }
     registerEventHandlers() {
-        // Click on an invoice in ordersGrid
-        $(document).on('click', '#ordersGrid', (e) => {
-            // console.log( 'a thing was clicked' );
-        });
         // Open Manage PO Modal
-        $(document).on('click', '#managePoItem', (e) => {
+        $(document).on('click', '#managePoItems', (e) => {
             e.preventDefault();
             this.openManageModal();
+        });
+
+        // $(document).on('click', '.ui-dialog-buttonset button:first-child', e => {
+        //     e.preventDefault();
+        //     let tableValues = this.getNewTableValues( '#newPoItemsGrid' );
+        //     let data = new PoObject( tableValues );
+        //     $('.ui-dialog #internalNotes').val( JSON.stringify( data ) ) ;
+        //     console.log( JSON.stringify( tableValues, null, 4) );
+        // });
+
+
+        // Open Manage New PO Modal
+        $(document).on('click', '#newManagePoItems', (e) => {
+            e.preventDefault();
+            let tableValues = this.getNewTableValues( '#newPoItemsGrid' );
+            this.data = this.checkNotes('', '.ui-dialog' );
+            this.data.items = $.extend( tableValues, this.data.items );
+            $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
+            this.setupListingsForMaster();
         });
         $(document).on('click', '.createNew', (e) => {
             e.preventDefault();
@@ -90,7 +115,7 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
-        $(document).on('change', '#ext-modal input[data-details], #ext-modal select[data-details]', e => {
+        $(document).on('change', '.modal__content input[data-details], #modal__content select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
             let listingId = listingContainer.data( 'listingid' ).toString();
@@ -125,7 +150,11 @@ class InjectScript {
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
             delete this.tempData;
-            $('#ext-modal').remove();
+            if( $('#ext-modal').length ){
+                $('#ext-modal').remove();
+            } else {
+                $('.modal__content').remove();
+            }
         });
     }
     validateInputs(){
@@ -151,6 +180,9 @@ class InjectScript {
     openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
         $('#ext-modal').html( extModalTemplate());
+        this.setupListingsForMaster();
+    }
+    setupListingsForMaster(){
         this.listingsForMaster = {};
         let self = this;
 
@@ -203,13 +235,9 @@ class InjectScript {
         $('#internalNotes').removeAttr( 'maxlength' );
 
         $('#internalNotes').before( extInternalNoteMsg() );
-        // This is probably just for dev. Probably remove before deploy
-        let currentNotesString = `<p style="width: 200px; max-height: 50px; overflow: auto; line-height: 1;">`;
-            currentNotesString += `Current Notes: ${$('#internalNotes').val()}</p>`;
-        $('#internalNotes').before( currentNotesString );
     }
-    checkNotes( poId ){
-        let notesVal = $('#internalNotes').val();
+    checkNotes( poId, scope ){
+        let notesVal = $(`${scope} #internalNotes`).val();
         let data = {};
         if( notesVal ){
             let validJson = tryParseJSON( notesVal );
@@ -228,24 +256,27 @@ class InjectScript {
     }
     poLoaded(){
         waitFor( '#poItemsGrid' ).then( (container) => {
-            console.log( 'poItemsGrid has been (re)rendered' );
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
-            $('#ext-managePoItem').html(extButton());
+            $('#ext-managePoItem').html(extButton('managePoItems'));
 
             let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
 
             this.setUpNotes();
-            this.data = this.checkNotes( poId );
+            this.data = this.checkNotes( poId, '#poItemsGrid' );
 
             let tableValues = this.getTableValues( container );
             this.checkPoForUpdate( tableValues );
+        });
+    }
 
-            console.log( this.data );
+    poCreated(){
+        waitFor( '#newPoItemsGrid' ).then( container => {
+            $('.ui-dialog-buttonset').find( 'button' ).first().after( extButton( 'newManagePoItems') );
+            $('.ui-dialog-buttonset').find( 'button' ).first().hide();
         });
     }
 
     getTableValues( container ){
-        console.log( 'get master skus from table');
         let rows = Array.from( $( container ).find( 'tr' ) ).filter( (row, idx) => idx > 0 );
         let masterSkusFromTable = rows.map( item => {
             function getCell( value ){
@@ -259,6 +290,26 @@ class InjectScript {
         });
         return masterSkusFromTable;
     }
+    getNewTableValues( container ){
+        let rows = Array.from( $( container ).find( 'tr' ) ).filter( (row, idx) => idx > 0 );
+        let masterSkusFromTable = rows.map( item => {
+            function getCell( value ){
+                return $( item ).find( `td[aria-describedby=newPoItemsGrid_${value}]` );
+            }
+            let qtyCell = getCell( 'itemQuantity' );
+            let qtyCellVal = qtyCell.text();
+            let qtyCellInput = qtyCell.find( 'input' );
+            if( qtyCellInput.length > 0 ){
+                qtyCellVal = qtyCellInput.val();
+            }
+            return {
+                id: getCell( 'productId' ).text(),
+                masterSku: getCell( 'productSkuAndName' ).text().split( ' - ' )[0],
+                masterQty: qtyCellVal
+            };
+        });
+        return masterSkusFromTable;
+    }
     checkPoForUpdate( tableValues ){
         let dataset = this.data.items;
         let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
@@ -267,12 +318,10 @@ class InjectScript {
 
         if( added.length ){
             somethingChanged = true;
-            console.log( '> an item has been added -> add to dataset' );
             added.forEach( item => dataset.push( new ItemObject( item ) ) );
         }
         if( removed.length ){
             somethingChanged = true;
-            console.log( '> an item has been deleted -> remove from dataset');
             removed.forEach( item => {
                 let index = dataset.indexOf( item );
                 if( index > -1 ){
@@ -282,27 +331,20 @@ class InjectScript {
         }
 
         // Check quantities
-        let quantitiesCorrect = true;
         let openManageModal = false;
         tableValues.forEach( value => {
             let datasetItem = dataset.find( item => item.id === value.id );
             if( value.masterQty != datasetItem.masterQty ){
-                quantitiesCorrect = false;
                 somethingChanged = true;
-                console.log(  `> quantities dont match for ${value.id} -> update qty in dataset` );
                 datasetItem.masterQty = value.masterQty;
-                console.log( '>> quantity has been updated -> check for listings.' );
+                // Master Qty was changed. If there are multiple listings, need to launch modal to update listings. If not, update listing
                 if( datasetItem.listings.length > 1 ){
-                    console.log( `>>> the master quantity of ${datasetItem.id} (${datasetItem.masterSku}) was changed. Now the listing quantities are wrong.` );
                     openManageModal = true;
                 } else {
                     datasetItem.listings[0].listingQty = datasetItem.masterQty;
                 }
             }
         });
-        if( quantitiesCorrect ){
-            console.log( '>>> all qtys are correct');
-        }
 
         if( somethingChanged ){
             this.savePoDetails( openManageModal );
@@ -320,9 +362,14 @@ class InjectScript {
         }
         if( ! openManageModal ){
             let modal = $('#ext-modal');
-            if( modal.length ){
+            let innerModal = $('.modal__content' );
+            if( innerModal.length ){
+                if( modal.length ){
+                    modal.remove();
+                } else {
+                    innerModal.remove();
+                }
                 delete this.tempData;
-                modal.remove();
             }
         } else {
             this.openManageModal();
