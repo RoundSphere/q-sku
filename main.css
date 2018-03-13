@@ -1,15 +1,3 @@
-#poDetailsPane {
-}
-
-#internalNotes {
-    /* display: none; */
-}
-
-
-div[aria-describedby=poItemDialog] {
-    outline: 4px solid pink !important;
-}
-
 #ext-modal {
     position: absolute;
     height: 100vh;
@@ -92,6 +80,9 @@ div[aria-describedby=poItemDialog] {
     border-top: 1px solid #c00;
     color: #c00;
     font-size: 11px;
+}
+.ext-error--zeros::after {
+    content: 'The quantity for a listing must be greater than 0.';
 }
 .listingSku {
     background: #fefefe;

@@ -1,6 +1,6 @@
-const extListingsDropdown = function( value ){
+const extListingsDropdown = function( value, listingSku ){
     return `
-        <option>${value}</option>
+        <option${ listingSku === value ? ' selected' : ''}>${value}</option>
     `;
 };
 

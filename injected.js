@@ -58,7 +58,7 @@ class InjectScript {
         this.registerEventHandlers();
         this.observer = new MutationSummary({
             callback: (summary) => this.handleSummary(summary),
-            queries: [{ element: '#poItemsGrid' }, { element: '#newPoItemsGrid' }]
+            queries: [{ element: '#poItemsGrid' }, { element: '#newPoForm' }]
         });
     }
     handleSummary( summary ){
@@ -106,7 +106,7 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
-        $(document).on('change', '.modal__content input[data-details], #modal__content select[data-details]', e => {
+        $(document).on('change', '.modal__content input[data-details], .modal__content select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
             let listingId = listingContainer.data( 'listingid' ).toString();
@@ -161,6 +161,7 @@ class InjectScript {
         let masterItems = this.tempData.items;
         masterItems.forEach( item => {
             let masterValid = true;
+            let noZeros = true;
             let masterContainer = $(`.master__container[data-masterid=${item.id}]`);
             let inputs = $(`.listingSku[data-masterid=${item.id}] input[data-details=listingQty]`);
 
@@ -171,7 +172,13 @@ class InjectScript {
                 valid = false;
                 masterValid = false;
             }
+            if( listingsQtys.indexOf( "0" ) > -1 ){
+                valid = false;
+                masterValid = false;
+                noZeros = false;
+            }
             masterContainer[ masterValid ? 'removeClass' : 'addClass' ]( 'ext-error' );
+            masterContainer[ noZeros ? 'removeClass' : 'addClass' ]( 'ext-error--zeros' );
             inputs[ masterValid ? 'removeClass' : 'addClass' ]( 'ext-error--input' );
         });
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
@@ -188,8 +195,6 @@ class InjectScript {
         async function getListingsForMaster( item ){
             let result = await ajax(item.masterSku, self.authToken);
             self.listingsForMaster[item.id] = result;
-            self.listingsForMaster[item.id].push( {listingSku: 'a test', salesChannelId: 'with stuff'} );
-            self.listingsForMaster[item.id].push( {listingSku: 'another test', salesChannelId: 'with more stuff'} );
         }
         async function processMasters( array ){
             const promises = array.map( getListingsForMaster );
@@ -215,11 +220,12 @@ class InjectScript {
         }
     }
     renderListing( master ){
-        let optionValue = listing => `${listing.listingSku} - ${listing.salesChannelId}`;
-        let optionsString = item => this.listingsForMaster[item.parent].map( listing => extListingsDropdown( optionValue( listing ) ) ).join( '' );
+        let optionsString = item => this.listingsForMaster[item.parent].map( listing => {
+            return extListingsDropdown( listing.listingSku, item.listingSku );
+        });
         let rows = master.listings.map( item => {
             this.validateInputs();
-            return extListingSku( item, optionsString( item ), master.listings.length );
+            return extListingSku( item, optionsString( item ).join( '' ), master.listings.length );
         });
         let masterRow = $(`.master__container[data-masterid=${master.id}]`);
         let listingContainer = masterRow.find( '.listings-container' );
@@ -231,7 +237,7 @@ class InjectScript {
     setUpNotes( scope ){
         // Diable #internalNotes
         let notes = $(`${scope} #internalNotes`);
-        // $('#internalNotes').attr( 'readonly', true ).hide();
+        notes.attr( 'readonly', true ).hide();
         notes.removeAttr( 'maxlength' );
         notes.before( extInternalNoteMsg() );
     }
@@ -272,6 +278,7 @@ class InjectScript {
         waitFor( '#newPoItemsGrid' ).then( container => {
             $('.ui-dialog-buttonset').find( 'button' ).first().after( extButton( 'newManagePoItems') );
             $('.ui-dialog-buttonset').find( 'button' ).first().hide();
+            this.setUpNotes( '#newPoForm' );
         });
     }
 
@@ -282,7 +289,7 @@ class InjectScript {
                 return $( item ).find( `td[aria-describedby=poItemsGrid_${value}]` ).text();
             }
             return {
-                id: getCell( 'itemId' ),
+                id: getCell( 'productSkuAndName' ).split( ' :: ' )[0].trim().replace( /\s/g, '-' ).toLowerCase(),
                 masterSku: getCell( 'productSkuAndName' ).split( ' :: ' )[0],
                 masterQty: getCell( 'itemQuantity' ).replace( ',', '' )
             };
@@ -302,7 +309,7 @@ class InjectScript {
                 qtyCellVal = qtyCellInput.val();
             }
             return {
-                id: getCell( 'productId' ).text(),
+                id: getCell( 'productSkuAndName' ).text().split( ' - ' )[0].trim().replace( /\s/g, '-' ).toLowerCase(),
                 masterSku: getCell( 'productSkuAndName' ).text().split( ' - ' )[0],
                 masterQty: qtyCellVal
             };
