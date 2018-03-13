@@ -194,7 +194,7 @@ class InjectScript {
 
         async function getListingsForMaster( item ){
             let result = await ajax(item.masterSku, self.authToken);
-            self.listingsForMaster[item.id] = result;
+            self.listingsForMaster[item.id] = result.filter( listingSku => listingSku.salesChannelId == '5394' );
         }
         async function processMasters( array ){
             const promises = array.map( getListingsForMaster );
