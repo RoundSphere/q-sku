@@ -78,15 +78,6 @@ class InjectScript {
             this.openManageModal();
         });
 
-        // $(document).on('click', '.ui-dialog-buttonset button:first-child', e => {
-        //     e.preventDefault();
-        //     let tableValues = this.getNewTableValues( '#newPoItemsGrid' );
-        //     let data = new PoObject( tableValues );
-        //     $('.ui-dialog #internalNotes').val( JSON.stringify( data ) ) ;
-        //     console.log( JSON.stringify( tableValues, null, 4) );
-        // });
-
-
         // Open Manage New PO Modal
         $(document).on('click', '#newManagePoItems', (e) => {
             e.preventDefault();
@@ -94,7 +85,7 @@ class InjectScript {
             this.data = this.checkNotes('', '.ui-dialog' );
             this.data.items = $.extend( tableValues, this.data.items );
             $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
-            this.setupListingsForMaster();
+            this.setupListingsForMaster( true );
         });
         $(document).on('click', '.createNew', (e) => {
             e.preventDefault();
@@ -144,7 +135,15 @@ class InjectScript {
                 return;
             }
             this.data = this.tempData;
-            this.savePoDetails();
+            this.savePoDetails({ isModal: true, scope: '#poDetailsPane' });
+        });
+        $(document).on('click', '#savePoDetails-new', (e) => {
+            e.preventDefault();
+            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
+                return;
+            }
+            this.data = this.tempData;
+            this.savePoDetails({ isModal: true, isNewPo: true, scope: '#newPoForm' });
         });
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
@@ -182,7 +181,7 @@ class InjectScript {
         $('#ext-modal').html( extModalTemplate());
         this.setupListingsForMaster();
     }
-    setupListingsForMaster(){
+    setupListingsForMaster( isNewPo ){
         this.listingsForMaster = {};
         let self = this;
 
@@ -195,16 +194,16 @@ class InjectScript {
         async function processMasters( array ){
             const promises = array.map( getListingsForMaster );
             await Promise.all( promises );
-            self.renderTable();
+            self.renderTable( isNewPo );
         }
         this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
         processMasters( this.tempData.items );
     }
-    renderTable(){
+    renderTable( isNewPo ){
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( this.tempData ) );
+            el.html( extModalTable( this.tempData, isNewPo ) );
             let templates = this.tempData.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
@@ -229,12 +228,12 @@ class InjectScript {
             dropdownParent: listingContainer
         });
     }
-    setUpNotes(){
+    setUpNotes( scope ){
         // Diable #internalNotes
+        let notes = $(`${scope} #internalNotes`);
         // $('#internalNotes').attr( 'readonly', true ).hide();
-        $('#internalNotes').removeAttr( 'maxlength' );
-
-        $('#internalNotes').before( extInternalNoteMsg() );
+        notes.removeAttr( 'maxlength' );
+        notes.before( extInternalNoteMsg() );
     }
     checkNotes( poId, scope ){
         let notesVal = $(`${scope} #internalNotes`).val();
@@ -261,8 +260,8 @@ class InjectScript {
 
             let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
 
-            this.setUpNotes();
-            this.data = this.checkNotes( poId, '#poItemsGrid' );
+            this.setUpNotes('#poDetailsPane');
+            this.data = this.checkNotes( poId, '#poDetailsPane' );
 
             let tableValues = this.getTableValues( container );
             this.checkPoForUpdate( tableValues );
@@ -331,7 +330,7 @@ class InjectScript {
         }
 
         // Check quantities
-        let openManageModal = false;
+        let listingNeedsUpdating = false;
         tableValues.forEach( value => {
             let datasetItem = dataset.find( item => item.id === value.id );
             if( value.masterQty != datasetItem.masterQty ){
@@ -339,7 +338,7 @@ class InjectScript {
                 datasetItem.masterQty = value.masterQty;
                 // Master Qty was changed. If there are multiple listings, need to launch modal to update listings. If not, update listing
                 if( datasetItem.listings.length > 1 ){
-                    openManageModal = true;
+                    listingNeedsUpdating = true;
                 } else {
                     datasetItem.listings[0].listingQty = datasetItem.masterQty;
                 }
@@ -347,20 +346,20 @@ class InjectScript {
         });
 
         if( somethingChanged ){
-            this.savePoDetails( openManageModal );
+            this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating, scope: '#poDetailsPane' });
         }
     }
 
-    savePoDetails( openManageModal ){
+    savePoDetails( options ){
         var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
         if( confirmUpdate ){
-            $('#internalNotes').val( JSON.stringify( this.data ) ) ;
+            $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         }
         let really = confirm( 'This should actually save the details. Are you really sure? This can\'t be undone.' );
         if( really ){
             $('button#updatePoDetails').trigger( 'click' );
         }
-        if( ! openManageModal ){
+        if( options.isModal ){
             let modal = $('#ext-modal');
             let innerModal = $('.modal__content' );
             if( innerModal.length ){
@@ -371,7 +370,12 @@ class InjectScript {
                 }
                 delete this.tempData;
             }
-        } else {
+            if( options.isNewPo ){
+                let save = $('.ui-dialog-buttonset').find( 'button' ).first();
+                save.trigger('click');
+            }
+        }
+        if( options.listingNeedsUpdating ){
             this.openManageModal();
         }
     }

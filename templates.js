@@ -37,7 +37,7 @@ const extListingSku = function( item, optionsString, listingsLength ){
     `;
 };
 
-const extModalTable = function( data ){
+const extModalTable = function( data, isNewPo ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
         <div class="master-sku-container"></div>
@@ -46,7 +46,7 @@ const extModalTable = function( data ){
             <textarea data-details="additionalNotes">${data.additionalNotes}</textarea>
         <div class="ext-btn-container">
             <a href="#" class="ext-btn ext-btn-cancel ext-modal-close">Close</a>
-            <a href="#" class="ext-btn" id="savePoDetails">Save</a>
+            <a href="#" class="ext-btn" id="savePoDetails${isNewPo ? '-new' : ''}">Save</a>
         </div>
     `;
 };
