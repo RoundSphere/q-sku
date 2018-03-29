@@ -8,7 +8,6 @@ class PoObject {
 }
 class ItemObject {
     constructor( options ){
-        // console.log("> Item Object Created");
         this.id        = options.id;
         this.masterSku = options.masterSku;
         this.masterQty = options.masterQty;
@@ -39,7 +38,6 @@ class ItemObject {
 }
 class ListingObject{
     constructor( options ){
-        // console.log("Listing Object Created");
         this.id         = options.id || options.parent + '_' + Date.now();
         this.masterSku  = options.masterSku;
         this.listingSku = options.listingSku || options.masterSku;
@@ -52,7 +50,7 @@ class ListingObject{
 
 class InjectScript {
     constructor() {
-        console.clear();
+        // console.clear();
         console.log( '***** Content Script ******' );
         console.log("InjectScript loaded");
         this.registerEventHandlers();
@@ -167,7 +165,6 @@ class InjectScript {
 
             let listingsQtys = item.listings.map( listing => listing.listingQty );
             let listingsTotal = listingsQtys.reduce( ( total, value ) => parseInt( total ) + parseInt( value ) );
-            // TODO validate for no zeros
             if( parseInt( item.masterQty ) != listingsTotal ){
                 valid = false;
                 masterValid = false;

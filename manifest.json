@@ -1,6 +1,6 @@
 {
     "name": "Q-SKU",
-    "description": "Allow adding additional Listing SKU details for for each Master SKU through submitted purchase orders",
+    "description": "Allow adding additional Listing SKU details for each Master SKU through submitted purchase orders",
     "version": "0.0.1",
     "icons": {
         "16": "icon-20.png",
@@ -10,10 +10,6 @@
     "permissions": [
         "storage"
     ],
-    "background": {
-        "scripts": ["background.js"],
-        "persistent": true
-    },
     "content_scripts" : [
         {
             "css" : ["main.css", "libs/css/select2.css"],
