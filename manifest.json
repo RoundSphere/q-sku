@@ -22,6 +22,7 @@
                 "libs/jquery-3.3.1.min.js",
                 "libs/MutationSummary.js",
                 "libs/select2.js",
+                "bundled-skus.js",
                 "utils.js",
                 "templates.js",
                 "injected.js"

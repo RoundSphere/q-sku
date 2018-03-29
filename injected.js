@@ -194,7 +194,11 @@ class InjectScript {
 
         async function getListingsForMaster( item ){
             let result = await ajax(item.masterSku, self.authToken);
-            self.listingsForMaster[item.id] = result.filter( listingSku => listingSku.salesChannelId == '5394' );
+            let filteredListings = result.filter( listingSku => listingSku.salesChannelId == '5394' && listingSku.pushInventory === false );
+            let bundledSkus = allBundledSkus.filter( bundleSku => item.masterSku == bundleSku.masterSku );
+            let combo = filteredListings.concat( bundledSkus );
+
+            self.listingsForMaster[item.id] = combo;
         }
         async function processMasters( array ){
             const promises = array.map( getListingsForMaster );
@@ -215,7 +219,8 @@ class InjectScript {
             this.tempData.items.forEach( item => this.renderListing( item ) );
 
             el.find( 'select' ).select2({
-                dropdownParent: el
+                dropdownParent: el,
+                tags: true
             });
         }
     }
@@ -231,7 +236,8 @@ class InjectScript {
         let listingContainer = masterRow.find( '.listings-container' );
         listingContainer.html( rows.join('') );
         listingContainer.find('select').select2({
-            dropdownParent: listingContainer
+            dropdownParent: listingContainer,
+            tags: true
         });
     }
     setUpNotes( scope ){
