@@ -361,14 +361,8 @@ class InjectScript {
     }
 
     savePoDetails( options ){
-        var confirmUpdate = confirm( 'You are about to change the notes. Are you sure?');
-        if( confirmUpdate ){
-            $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
-        }
-        let really = confirm( 'This should actually save the details. Are you really sure? This can\'t be undone.' );
-        if( really ){
-            $('button#updatePoDetails').trigger( 'click' );
-        }
+        $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
+        $('button#updatePoDetails').trigger( 'click' );
         if( options.isModal ){
             let modal = $('#ext-modal');
             let innerModal = $('.modal__content' );
