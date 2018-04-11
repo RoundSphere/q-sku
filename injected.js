@@ -50,7 +50,7 @@ class ListingObject{
 
 class InjectScript {
     constructor() {
-        // console.clear();
+        console.clear();
         console.log( '***** Content Script ******' );
         console.log("InjectScript loaded");
         this.registerEventHandlers();
@@ -250,6 +250,7 @@ class InjectScript {
         notes.before( extInternalNoteMsg() );
     }
     checkNotes( poId, scope ){
+        console.log( poId, scope );
         let notesVal = $(`${scope} #internalNotes`).val();
         let data = {};
         if( notesVal ){
@@ -268,15 +269,17 @@ class InjectScript {
         return new PoObject( data );
     }
     poLoaded(){
-        waitFor( '#poItemsGrid' ).then( (container) => {
+        waitFor( '#poItemsGrid' ).then( async (container) => {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html(extButton('managePoItems'));
 
             let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
 
             this.setUpNotes('#poDetailsPane');
-            this.data = this.checkNotes( poId, '#poDetailsPane' );
-
+            await wait( 2000 );
+            // this.data = this.checkNotes( poId, '#poDetailsPane' );
+            console.log( airtableResponse );
+            this.data = new PoObject( airtableResponse );
             let tableValues = this.getTableValues( container );
             this.checkPoForUpdate( tableValues );
         });
@@ -366,8 +369,8 @@ class InjectScript {
     }
 
     savePoDetails( options ){
-        $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
-        $('button#updatePoDetails').trigger( 'click' );
+        // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
+        // $('button#updatePoDetails').trigger( 'click' );
         if( options.isModal ){
             let modal = $('#ext-modal');
             let innerModal = $('.modal__content' );
@@ -381,7 +384,7 @@ class InjectScript {
             }
             if( options.isNewPo ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
-                save.trigger('click');
+                // save.trigger('click');
             }
         }
         if( options.listingNeedsUpdating ){

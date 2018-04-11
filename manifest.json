@@ -19,6 +19,7 @@
                 "libs/MutationSummary.js",
                 "libs/select2.js",
                 "bundled-skus.js",
+                "response.js",
                 "utils.js",
                 "templates.js",
                 "injected.js"
