@@ -189,21 +189,26 @@ class InjectScript {
         this.listingsForMaster = {};
         let self = this;
 
-        async function getListingsForMaster( item ){
-            let result = await ajax(item.masterSku, self.authToken);
-            let filteredListings = result.filter( listingSku => listingSku.salesChannelId == '5394' && listingSku.pushInventory === false );
-            let bundledSkus = allBundledSkus.filter( bundleSku => item.masterSku == bundleSku.masterSku );
-            let combo = filteredListings.concat( bundledSkus );
+        async function getListingsForMaster( masters ){
+            let data = {
+                masterSku: masters.map( item => item.masterSku ).join( ',' ),
+                limit: 500,
+                salesChannelId: 5394
+            };
+            let result = await ajax( data, self.authToken );
+            masters.forEach( master => {
+                // Get bundled skus from allBundledSkus const in bundled-skus.js
+                let bundledSkus = allBundledSkus.filter( bundleSku => master.masterSku == bundleSku.masterSku );
+                let filteredListings = result.filter( listing => listing.masterSku === master.masterSku );
+                let combo = filteredListings.concat( bundledSkus );
 
-            self.listingsForMaster[item.id] = combo;
-        }
-        async function processMasters( array ){
-            const promises = array.map( getListingsForMaster );
-            await Promise.all( promises );
+                self.listingsForMaster[master.id] = combo;
+            });
             self.renderTable( isNewPo );
         }
+
         this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-        processMasters( this.tempData.items );
+        getListingsForMaster( this.tempData.items );
     }
     renderTable( isNewPo ){
         let el = $('.modal__content');

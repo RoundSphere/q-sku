@@ -1,11 +1,11 @@
-function ajax(sku, token) {
+function ajax(data, token) {
     return new Promise(function(resolve, reject) {
         $.ajax({
             url: `https://app.skubana.com/service/v1/listings`,
             headers: {
                 'Authorization': `Bearer ${token}`
             },
-            data: { masterSku: sku },
+            data: data,
             success: function( response ){
                 resolve( response );
             },
