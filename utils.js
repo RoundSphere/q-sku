@@ -135,7 +135,11 @@ function waitFor(selector) {
     });
 }
 function wait(time) {
+    console.log( 'wait started' );
     return new Promise((resolve) => {
-        setTimeout(resolve, time);
+        setTimeout(function(){
+            console.log( 'waits over' );
+            return resolve();
+        }, time);
     });
 }

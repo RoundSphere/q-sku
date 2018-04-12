@@ -70,21 +70,31 @@ class InjectScript {
         }
     }
     registerEventHandlers() {
-        // Open Manage PO Modal
-        $(document).on('click', '#managePoItems', (e) => {
+        // Open Manage Modal for existing PO
+        $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
-            this.openManageModal();
+            await this.openManageModal();
+            await wait( 700 );
+            let listingsForMaster = await this.setupListingsForMaster();
+            this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
+
+            this.renderTable( false, listingsForMaster );
         });
 
-        // Open Manage New PO Modal
-        $(document).on('click', '#newManagePoItems', (e) => {
+        // Open Manage Modal for new PO
+        $(document).on('click', '#newManagePoItems', async e => {
             e.preventDefault();
-            let tableValues = this.getNewTableValues( '#newPoItemsGrid' );
-            this.data = this.checkNotes('', '.ui-dialog' );
-            this.data.items = $.extend( tableValues, this.data.items );
             $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
-            this.setupListingsForMaster( true );
+            let tableValues = await this.getNewTableValues( '#newPoItemsGrid' );
+            this.data = await this.checkNotes('', '.ui-dialog' );
+            this.data.items = $.extend( tableValues, this.data.items );
+            let listingsForMaster = await this.setupListingsForMaster();
+            this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
+
+            this.renderTable( true, listingsForMaster );
         });
+
+        // Creates new listing in modal
         $(document).on('click', '.createNew', (e) => {
             e.preventDefault();
             let el = $( e.currentTarget );
@@ -94,6 +104,8 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
+
+        // Deletes listing in modal
         $(document).on('click', '.deleteRow', (e) => {
             e.preventDefault();
             let el = $( e.currentTarget );
@@ -104,6 +116,8 @@ class InjectScript {
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
+
+        // Validates inputs on change in modal
         $(document).on('change', '.modal__content input[data-details], .modal__content select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
@@ -123,10 +137,13 @@ class InjectScript {
                 this.validateInputs();
             }
         });
+
+        // Adds notes to PO
         $(document).on('change', 'textarea[data-details]', e => {
             this.tempData.additionalNotes = $( e.currentTarget ).val();
         });
 
+        // Save Listings on previously created po
         $(document).on('click', '#savePoDetails', (e) => {
             e.preventDefault();
             if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
@@ -135,6 +152,8 @@ class InjectScript {
             this.data = this.tempData;
             this.savePoDetails({ isModal: true, scope: '#poDetailsPane' });
         });
+
+        // Save Listings for new PO
         $(document).on('click', '#savePoDetails-new', (e) => {
             e.preventDefault();
             if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
@@ -143,6 +162,7 @@ class InjectScript {
             this.data = this.tempData;
             this.savePoDetails({ isModal: true, isNewPo: true, scope: '#newPoForm' });
         });
+
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
@@ -182,35 +202,31 @@ class InjectScript {
     }
     openManageModal() {
         $('body').append('<div id="ext-modal"></div>' );
-        $('#ext-modal').html( extModalTemplate());
-        this.setupListingsForMaster();
+        $('#ext-modal').html( extModalTemplate() );
     }
-    setupListingsForMaster( isNewPo ){
-        this.listingsForMaster = {};
-        let self = this;
-
-        async function getListingsForMaster( masters ){
-            let data = {
+    setupListingsForMaster(){
+        async function getListingsForMaster( masters, authToken  ){
+            let data, result, listingsForMaster;
+            data = {
                 masterSku: masters.map( item => item.masterSku ).join( ',' ),
                 limit: 500,
                 salesChannelId: 5394
             };
-            let result = await ajax( data, self.authToken );
+            result = await ajax( data, authToken );
+            listingsForMaster = {};
             masters.forEach( master => {
                 // Get bundled skus from allBundledSkus const in bundled-skus.js
                 let bundledSkus = allBundledSkus.filter( bundleSku => master.masterSku == bundleSku.masterSku );
                 let filteredListings = result.filter( listing => listing.masterSku === master.masterSku );
                 let combo = filteredListings.concat( bundledSkus );
 
-                self.listingsForMaster[master.id] = combo;
+                listingsForMaster[master.id] = combo;
             });
-            self.renderTable( isNewPo );
+            return await listingsForMaster;
         }
-
-        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-        getListingsForMaster( this.tempData.items );
+        return getListingsForMaster( this.tempData.items, this.authToken );
     }
-    renderTable( isNewPo ){
+    renderTable( isNewPo, listingsForMaster ){
         let el = $('.modal__content');
         if( el.length ){
             // Render table
@@ -218,7 +234,7 @@ class InjectScript {
             let templates = this.tempData.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
-            this.tempData.items.forEach( item => this.renderListing( item ) );
+            this.tempData.items.forEach( item => this.renderListing( item, listingsForMaster ) );
 
             el.find( 'select' ).select2({
                 dropdownParent: el,
@@ -226,8 +242,8 @@ class InjectScript {
             });
         }
     }
-    renderListing( master ){
-        let optionsString = item => this.listingsForMaster[item.parent].map( listing => {
+    renderListing( master, listingsForMaster ){
+        let optionsString = item => listingsForMaster[item.parent].map( listing => {
             return extListingsDropdown( listing.listingSku, item.listingSku );
         });
         let rows = master.listings.map( item => {
@@ -276,7 +292,7 @@ class InjectScript {
             let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
 
             this.setUpNotes('#poDetailsPane');
-            await wait( 2000 );
+            // await wait( 2000 );
             // this.data = this.checkNotes( poId, '#poDetailsPane' );
             console.log( airtableResponse );
             this.data = new PoObject( airtableResponse );
