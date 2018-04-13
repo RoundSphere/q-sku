@@ -1,10 +1,65 @@
 class PoObject {
     constructor( options ) {
-        let items  = options.items;
-        this.id    = options.id || '';
-        this.items = items ? items.map( item => new ItemObject( item ) ) : [];
+        let items   = options.items;
+        this.id     = options.id || '';
+        this.qSkuId = options.qSkuId;
+        this.items  = items ? items.map( item => new ItemObject( item ) ) : [];
         this.additionalNotes = options.additionalNotes || '';
     }
+    postToAirtable(){
+        let listings = [].concat.apply( [], this.items.map( item => item.listings ) );
+        console.log( listings );
+        let qSkuId = this.qSkuId;
+        if( ! qSkuId ){
+            qSkuId = Math.round( ( new Date() ).getTime() / 1000 );
+        }
+        async function postToAT( listing ){
+            let data = {
+                "fields" : {
+                    "Listing SKU" : listing.listingSku,
+                    // "Master Sku"  : listing.masterSku,
+                    "Outgoing Stock or listingQty" : listing.listingQty,
+                    "sendToFBA" : listing.sendToFBA,
+                    "LTL warning": "needs to be set up",
+                    "QSkuId" : qSkuId.toString()
+                }
+            };
+            let settings = {
+                url     : 'https://api.airtable.com/v0/appzVvw2EEvwkrlgA/allocations_test',
+                method  : "POST",
+                headers : {
+                    Authorization : "Bearer key6WCg4VxCEwTlw4",
+                },
+                contentType: "application/json",
+                dataType: "json",
+                data : JSON.stringify( data )
+            };
+            let result = await ajax( settings );
+            // console.log( result );
+            return await result;
+        }
+
+        listings.forEach( async listing => {
+            await wait( 200 );
+            postToAT( listing );
+        });
+    }
+}
+
+async function getListingsFromAirtable( id ){
+    let settings = {
+        url     : 'https://api.airtable.com/v0/appzVvw2EEvwkrlgA/allocations_test',
+        method  : "GET",
+        headers : {
+            Authorization : "Bearer key6WCg4VxCEwTlw4"
+        },
+        data: {
+            filterByFormula: `{QSkuId} = ${ id }`
+        }
+    };
+    let result = await ajax( settings );
+    // console.log( result );
+    return await result;
 }
 class ItemObject {
     constructor( options ){
@@ -74,11 +129,9 @@ class InjectScript {
         $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
             await this.openManageModal();
-            await wait( 700 );
             let listingsForMaster = await this.setupListingsForMaster();
-            this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
 
-            this.renderTable( false, listingsForMaster );
+            this.renderTable({ isNewPo: false });
         });
 
         // Open Manage Modal for new PO
@@ -86,12 +139,12 @@ class InjectScript {
             e.preventDefault();
             $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
             let tableValues = await this.getNewTableValues( '#newPoItemsGrid' );
-            this.data = await this.checkNotes('', '.ui-dialog' );
+            this.data = await this.checkNotes( null, '.ui-dialog' );
             this.data.items = $.extend( tableValues, this.data.items );
-            let listingsForMaster = await this.setupListingsForMaster();
+            this.listingsForMaster = await this.setupListingsForMaster();
             this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
 
-            this.renderTable( true, listingsForMaster );
+            this.renderTable({ isNewPo: true });
         });
 
         // Creates new listing in modal
@@ -180,8 +233,8 @@ class InjectScript {
         masterItems.forEach( item => {
             let masterValid = true;
             let noZeros = true;
-            let masterContainer = $(`.master__container[data-masterid=${item.id}]`);
-            let inputs = $(`.listingSku[data-masterid=${item.id}] input[data-details=listingQty]`);
+            let masterContainer = $(`.master__container[data-masterid="${item.id}"]`);
+            let inputs = $(`.listingSku[data-masterid="${item.id}"] input[data-details=listingQty]`);
 
             let listingsQtys = item.listings.map( listing => listing.listingQty );
             let listingsTotal = listingsQtys.reduce( ( total, value ) => parseInt( total ) + parseInt( value ) );
@@ -208,11 +261,17 @@ class InjectScript {
         async function getListingsForMaster( masters, authToken  ){
             let data, result, listingsForMaster;
             data = {
-                masterSku: masters.map( item => item.masterSku ).join( ',' ),
-                limit: 500,
-                salesChannelId: 5394
+                url: "https://app.skubana.com/service/v1/listings",
+                data: {
+                    masterSku: masters.map( item => item.masterSku ).join( ',' ),
+                    limit: 500,
+                    salesChannelId: 5394
+                },
+                headers: {
+                    Authorization : "Bearer " + authToken
+                }
             };
-            result = await ajax( data, authToken );
+            result = await ajax( data );
             listingsForMaster = {};
             masters.forEach( master => {
                 // Get bundled skus from allBundledSkus const in bundled-skus.js
@@ -224,17 +283,19 @@ class InjectScript {
             });
             return await listingsForMaster;
         }
+
+        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
         return getListingsForMaster( this.tempData.items, this.authToken );
     }
-    renderTable( isNewPo, listingsForMaster ){
+    renderTable( options ){
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( this.tempData, isNewPo ) );
+            el.html( extModalTable( this.tempData, options.isNewPo ) );
             let templates = this.tempData.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
-            this.tempData.items.forEach( item => this.renderListing( item, listingsForMaster ) );
+            this.tempData.items.forEach( item => this.renderListing( item ) );
 
             el.find( 'select' ).select2({
                 dropdownParent: el,
@@ -242,15 +303,15 @@ class InjectScript {
             });
         }
     }
-    renderListing( master, listingsForMaster ){
-        let optionsString = item => listingsForMaster[item.parent].map( listing => {
+    renderListing( master ){
+        let optionsString = item => this.listingsForMaster[item.parent].map( listing => {
             return extListingsDropdown( listing.listingSku, item.listingSku );
         });
         let rows = master.listings.map( item => {
             this.validateInputs();
             return extListingSku( item, optionsString( item ).join( '' ), master.listings.length );
         });
-        let masterRow = $(`.master__container[data-masterid=${master.id}]`);
+        let masterRow = $(`.master__container[data-masterid="${master.id}"]`);
         let listingContainer = masterRow.find( '.listings-container' );
         listingContainer.html( rows.join('') );
         listingContainer.find('select').select2({
@@ -261,13 +322,26 @@ class InjectScript {
     setUpNotes( scope ){
         // Diable #internalNotes
         let notes = $(`${scope} #internalNotes`);
-        notes.attr( 'readonly', true ).hide();
+        // notes.attr( 'readonly', true ).hide();
+        notes.attr( 'readonly', true );
         notes.removeAttr( 'maxlength' );
         notes.before( extInternalNoteMsg() );
     }
     checkNotes( poId, scope ){
-        console.log( poId, scope );
+        // console.log( poId, scope );
         let notesVal = $(`${scope} #internalNotes`).val();
+        let qSkuId = Math.round( ( new Date() ).getTime() / 1000 );
+        let qSkuIdString = '*** q-SKU PO ID: ';
+        let qSkuIdPos = notesVal.indexOf( qSkuIdString );
+        let qSkuIdStart = qSkuIdPos + qSkuIdString.length
+        if( qSkuIdPos > -1 ){
+            qSkuId = notesVal.slice( qSkuIdStart, notesVal.indexOf( '***', qSkuIdStart ) );
+        }
+        $(`${scope} #internalNotes` ).val( `${ qSkuIdString + qSkuId } ***` );
+
+        let data2 = getListingsFromAirtable( qSkuId );
+        console.log( data2 );
+
         let data = {};
         if( notesVal ){
             let validJson = tryParseJSON( notesVal );
@@ -275,14 +349,14 @@ class InjectScript {
                 data = validateJson( validJson );
             } else {
                 console.log( 'notes were not json' );
-                data = { id: poId, additionalNotes: notesVal };
+                data = { id: poId, additionalNotes: notesVal, qSkuId: qSkuId };
             }
         } else {
             console.log( 'no notes. create them' );
-            data = { id: poId };
+            data = { id: poId, qSkuId: qSkuId };
         }
-
-        return new PoObject( data );
+        let poObject = new PoObject( data );
+        return poObject;
     }
     poLoaded(){
         waitFor( '#poItemsGrid' ).then( async (container) => {
@@ -293,9 +367,7 @@ class InjectScript {
 
             this.setUpNotes('#poDetailsPane');
             // await wait( 2000 );
-            // this.data = this.checkNotes( poId, '#poDetailsPane' );
-            console.log( airtableResponse );
-            this.data = new PoObject( airtableResponse );
+            this.data = this.checkNotes( poId, '#poDetailsPane' );
             let tableValues = this.getTableValues( container );
             this.checkPoForUpdate( tableValues );
         });
@@ -388,18 +460,20 @@ class InjectScript {
         // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         // $('button#updatePoDetails').trigger( 'click' );
         if( options.isModal ){
-            let modal = $('#ext-modal');
-            let innerModal = $('.modal__content' );
-            if( innerModal.length ){
-                if( modal.length ){
-                    modal.remove();
-                } else {
-                    innerModal.remove();
-                }
-                delete this.tempData;
-            }
+            // let modal = $('#ext-modal');
+            // let innerModal = $('.modal__content' );
+            // if( innerModal.length ){
+            //     if( modal.length ){
+            //         modal.remove();
+            //     } else {
+            //         innerModal.remove();
+            //     }
+            //     delete this.tempData;
+            // }
             if( options.isNewPo ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
+                console.log( JSON.stringify( this.data, null, 4 ), JSON.stringify( this.tempData, null, 4 )  );
+                this.data.postToAirtable();
                 // save.trigger('click');
             }
         }

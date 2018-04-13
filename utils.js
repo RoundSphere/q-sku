@@ -1,4 +1,4 @@
-function ajax(data, token) {
+function ajax__OLD(data, token) {
     return new Promise(function(resolve, reject) {
         $.ajax({
             url: `https://app.skubana.com/service/v1/listings`,
@@ -13,6 +13,14 @@ function ajax(data, token) {
                 reject( response );
             }
         });
+    });
+}
+
+function ajax(settings) {
+    return new Promise(function(resolve, reject) {
+        settings.success = response => resolve( response );
+        settings.error = response => reject( response );
+        $.ajax(settings);
     });
 }
 
