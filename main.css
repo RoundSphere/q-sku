@@ -147,3 +147,7 @@
     width: 70px;
     margin-bottom: 5px;
 }
+
+.select2-container {
+    min-width: 200px;
+}

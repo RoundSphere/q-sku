@@ -2,9 +2,31 @@ class PoObject {
     constructor( options ) {
         let items   = options.items;
         this.id     = options.id || '';
-        this.qSkuId = options.qSkuId;
+        this.qSkuId = options.qSkuId || '';
         this.items  = items ? items.map( item => new ItemObject( item ) ) : [];
         this.additionalNotes = options.additionalNotes || '';
+    }
+    hydrateFromAirtable( options ){
+        // console.log( options, this );
+        let groupedItems = [];
+        let items = new Set( options.records.map( record => record.fields["QSkuMasterSku"] ) );
+        items.forEach( item => {
+            let listings = options.records.filter( listing => listing.fields["QSkuMasterSku"] === item );
+            let masterValues = listings.map( listing => listing.fields["Outgoing Stock or listingQty"] );
+            let masterTotal = masterValues.reduce( ( total, listingValue ) => parseInt( total ) + parseInt( listingValue ), 0);
+            groupedItems.push(
+                {
+                    id: item.trim().replace( /\s/g, '-' ).toLowerCase(),
+                    masterSku: item,
+                    masterQty: masterTotal,
+                    listings: listings.map( listing => listing.fields )
+                }
+            );
+        });
+
+        console.log( groupedItems );
+        this.items = groupedItems.map( item => new ItemObject( item ) );
+        return this;
     }
     postToAirtable(){
         let listings = [].concat.apply( [], this.items.map( item => item.listings ) );
@@ -16,12 +38,12 @@ class PoObject {
         async function postToAT( listing ){
             let data = {
                 "fields" : {
-                    "Listing SKU" : listing.listingSku,
-                    // "Master Sku"  : listing.masterSku,
+                    "Listing SKU"   : listing.listingSku,
                     "Outgoing Stock or listingQty" : listing.listingQty,
-                    "sendToFBA" : listing.sendToFBA,
-                    "LTL warning": "needs to be set up",
-                    "QSkuId" : qSkuId.toString()
+                    "sendToFBA"     : listing.sendToFBA,
+                    "LTL warning"   : "needs to be set up",
+                    "QSkuId"        : qSkuId.toString(),
+                    "QSkuMasterSku" : listing.masterSku
                 }
             };
             let settings = {
@@ -129,7 +151,12 @@ class InjectScript {
         $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
             await this.openManageModal();
-            let listingsForMaster = await this.setupListingsForMaster();
+            this.listingsForMaster = await this.setupListingsForMaster();
+
+            // this.data = await getListingsFromAirtable( )
+            let testData = await getListingsFromAirtable( this.data.qSkuId );
+            this.data = await this.data.hydrateFromAirtable( testData );
+            this.tempData = this.data;
 
             this.renderTable({ isNewPo: false });
         });
@@ -216,10 +243,17 @@ class InjectScript {
             this.savePoDetails({ isModal: true, isNewPo: true, scope: '#newPoForm' });
         });
 
+        // Listener for successful submitnewpo request
+        chrome.runtime.onMessage.addListener( request => {
+            if( request.newPoSuccess ){
+                this.data.postToAirtable();
+            }
+        });
+
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
-            delete this.tempData;
+            // delete this.tempData;
             if( $('#ext-modal').length ){
                 $('#ext-modal').remove();
             } else {
@@ -227,6 +261,7 @@ class InjectScript {
             }
         });
     }
+
     validateInputs(){
         let valid = true;
         let masterItems = this.tempData.items;
@@ -338,9 +373,6 @@ class InjectScript {
             qSkuId = notesVal.slice( qSkuIdStart, notesVal.indexOf( '***', qSkuIdStart ) );
         }
         $(`${scope} #internalNotes` ).val( `${ qSkuIdString + qSkuId } ***` );
-
-        let data2 = getListingsFromAirtable( qSkuId );
-        console.log( data2 );
 
         let data = {};
         if( notesVal ){
@@ -460,21 +492,20 @@ class InjectScript {
         // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         // $('button#updatePoDetails').trigger( 'click' );
         if( options.isModal ){
-            // let modal = $('#ext-modal');
-            // let innerModal = $('.modal__content' );
-            // if( innerModal.length ){
-            //     if( modal.length ){
-            //         modal.remove();
-            //     } else {
-            //         innerModal.remove();
-            //     }
-            //     delete this.tempData;
-            // }
             if( options.isNewPo ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
                 console.log( JSON.stringify( this.data, null, 4 ), JSON.stringify( this.tempData, null, 4 )  );
-                this.data.postToAirtable();
-                // save.trigger('click');
+                save.trigger('click');
+            }
+            let modal = $('#ext-modal');
+            let innerModal = $('.modal__content' );
+            if( innerModal.length ){
+                if( modal.length ){
+                    modal.remove();
+                } else {
+                    innerModal.remove();
+                }
+                // delete this.tempData;
             }
         }
         if( options.listingNeedsUpdating ){

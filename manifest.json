@@ -8,8 +8,14 @@
     },
     "manifest_version": 2,
     "permissions": [
-        "storage"
+        "storage",
+        "webRequest",
+        "*://app.skubana.com/*"
     ],
+    "background": {
+        "scripts" : ["background.js"],
+        "persistent" : true
+    },
     "content_scripts" : [
         {
             "css" : ["main.css", "libs/css/select2.css"],
@@ -19,7 +25,6 @@
                 "libs/MutationSummary.js",
                 "libs/select2.js",
                 "bundled-skus.js",
-                "response.js",
                 "utils.js",
                 "templates.js",
                 "injected.js"
