@@ -7,7 +7,6 @@ class PoObject {
         this.additionalNotes = options.additionalNotes || '';
     }
     hydrateFromAirtable( options ){
-        // console.log( options, this );
         let groupedItems = [];
         let items = new Set( options.records.map( record => record.fields["QSkuMasterSku"] ) );
         items.forEach( item => {
@@ -16,21 +15,18 @@ class PoObject {
             let masterTotal = masterValues.reduce( ( total, listingValue ) => parseInt( total ) + parseInt( listingValue ), 0);
             groupedItems.push(
                 {
-                    id: item.trim().replace( /\s/g, '-' ).toLowerCase(),
-                    masterSku: item,
-                    masterQty: masterTotal,
-                    listings: listings.map( listing => listing.fields )
+                    id        : item.trim().replace( /\s/g, '-' ).toLowerCase(),
+                    masterSku : item,
+                    masterQty : masterTotal,
+                    listings  : listings.map( listing => new ListingObject( parseListing( listing ) ) )
                 }
             );
         });
-
-        console.log( groupedItems );
         this.items = groupedItems.map( item => new ItemObject( item ) );
         return this;
     }
     postToAirtable(){
         let listings = [].concat.apply( [], this.items.map( item => item.listings ) );
-        console.log( listings );
         let qSkuId = this.qSkuId;
         if( ! qSkuId ){
             qSkuId = Math.round( ( new Date() ).getTime() / 1000 );
@@ -66,6 +62,23 @@ class PoObject {
             postToAT( listing );
         });
     }
+}
+
+function parseListing( data ){
+    let fData = data;
+    if( data.fields ){
+        let response = data.fields;
+        fData = {
+            listingSku    : response["Listing SKU"],
+            listingQty    : response["Outgoing Stock or listingQty"],
+            sendToFBA     : response["sendToFBA"],
+            ltl           : response["LTL warning"],
+            qSkuId        : response["QSkuId"],
+            qSkuMasterSku : response["QSkuMasterSku"],
+            parent        : response["QSkuMasterSku"].trim().replace( /\s/g, '-' ).toLowerCase()
+        }
+    }
+    return fData;
 }
 
 async function getListingsFromAirtable( id ){
@@ -344,7 +357,13 @@ class InjectScript {
         });
         let rows = master.listings.map( item => {
             this.validateInputs();
-            return extListingSku( item, optionsString( item ).join( '' ), master.listings.length );
+            let optionsArray = [];
+            if( this.listingsForMaster[item.parent] ){
+                optionsArray = optionsString( item );
+            } else {
+                optionsArray = [ extListingsDropdown( 'No Master SKU', 'No Master SKU') ];
+            }
+            return extListingSku( item, optionsArray.join( '' ), master.listings.length );
         });
         let masterRow = $(`.master__container[data-masterid="${master.id}"]`);
         let listingContainer = masterRow.find( '.listings-container' );
