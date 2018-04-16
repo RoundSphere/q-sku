@@ -27,6 +27,7 @@
                 "bundled-skus.js",
                 "utils.js",
                 "templates.js",
+                "objects.js",
                 "injected.js"
             ]
         }
