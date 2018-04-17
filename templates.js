@@ -9,7 +9,7 @@ const extMasterSku = function( item ){
         <div class="masterItem master__container" data-masterid="${item.id}">
             <div class="ext-title"><strong>${item.masterSku} :: Qty: ${item.masterQty}</strong></div>
             <div class="ext-flex">
-                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Split</a></div>
+                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createRow addDeleteListing">Split</a></div>
                 <div class="ext-flex-item--full">Listing SKU</div>
                 <div class="ext-flex-item">Quantity</div>
                 <div class="ext-flex-item">Send to FBA?</div>
@@ -21,7 +21,7 @@ const extMasterSku = function( item ){
 };
 
 const extListingSku = function( item, optionsString, listingsLength ){
-    let removeBtn = `<a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a>`;
+    let removeBtn = `<a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow addDeleteListing">Remove</a>`;
     return `
         <div class="ext-flex listingSku" data-masterid="${item.parent}" data-listingid="${item.id}">
             <div class="ext-flex-item">${ listingsLength > 1 ? removeBtn : ''}</div>

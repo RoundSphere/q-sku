@@ -36,25 +36,14 @@ class InjectScript {
             this.openManageModal({ isNewPo: isNewPo });
         });
 
-        // Creates new listing in modal
-        $(document).on('click', '.createNew', (e) => {
+        // Creates or deletes listing in modal
+        $(document).on('click', '.addDeleteListing', e => {
             e.preventDefault();
             let el = $( e.currentTarget );
             let id = el.data( 'itemid' ).toString();
             let masterItem = this.tempData.items.find( item => item.id === id );
-            let newMasterItem = masterItem.addListing();
-
-            this.renderListing( newMasterItem, this.listingsForMaster[id] );
-        });
-
-        // Deletes listing in modal
-        $(document).on('click', '.deleteRow', (e) => {
-            e.preventDefault();
-            let el = $( e.currentTarget );
-            let id = el.data( 'itemid' ).toString();
-            let masterItem = this.tempData.items.find( item => item.id === id );
-            let listingId = el.data( 'listingid' ).toString();
-            let newMasterItem = masterItem.removeListing( listingId );
+            let listingId = el.hasClass( 'deleteRow' ) ? el.data( 'listingid' ).toString() : '';
+            let newMasterItem = masterItem[ el.hasClass( 'deleteRow' ) ? 'removeListing' : 'addListing' ]( listingId );
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
