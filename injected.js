@@ -1,35 +1,3 @@
-function parseListing( data ){
-    let fData = data;
-    if( data.fields ){
-        let response = data.fields;
-        fData = {
-            listingSku    : response["Listing SKU"],
-            listingQty    : response["Outgoing Stock or listingQty"],
-            sendToFBA     : response["sendToFBA"],
-            ltl           : response["LTL warning"],
-            qSkuId        : response["QSkuId"],
-            qSkuMasterSku : response["QSkuMasterSku"],
-            parent        : response["QSkuMasterSku"].trim().replace( /\s/g, '-' ).toLowerCase()
-        }
-    }
-    return fData;
-}
-
-async function getListingsFromAirtable( id ){
-    let settings = {
-        url     : 'https://api.airtable.com/v0/appzVvw2EEvwkrlgA/allocations_test',
-        method  : "GET",
-        headers : {
-            Authorization : "Bearer key6WCg4VxCEwTlw4"
-        },
-        data: {
-            filterByFormula: `{QSkuId} = ${ id }`
-        }
-    };
-    let result = await ajax( settings );
-    return await result;
-}
-
 class InjectScript {
     constructor() {
         console.clear();
@@ -42,12 +10,12 @@ class InjectScript {
         });
     }
     handleSummary( summary ){
-        if( summary[1].added.length ){
-            this.poCreated();
-            return;
-        }
         if( summary[0].added.length ){
             this.poLoaded();
+            return;
+        }
+        if( summary[1].added.length ){
+            this.poCreated();
             return;
         }
     }
@@ -55,26 +23,17 @@ class InjectScript {
         // Open Manage Modal for existing PO
         $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
-            await this.openManageModal();
-            // this.listingsForMaster = await this.setupListingsForMaster();
-            // let testData = await getListingsFromAirtable( this.data.qSkuId );
-            // this.data = await this.data.hydrateFromAirtable( testData );
-            // this.tempData = this.data;
+            let isNewPo = true;
+            if( $( e.currentTarget ).hasClass( 'existingPO' ) ){
+                $('body').append('<div id="ext-modal"></div>' );
+                await $('#ext-modal').html( extModalTemplate() );
+                isNewPo = false;
+            }
+            if( $( e.currentTarget ).hasClass( 'newPO' ) ){
+                await $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
+            }
 
-            // this.renderTable({ isNewPo: false });
-        });
-
-        // Open Manage Modal for new PO
-        $(document).on('click', '#newManagePoItems', async e => {
-            e.preventDefault();
-            $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
-            let tableValues = await this.getNewTableValues( '#newPoItemsGrid' );
-            this.data = await this.checkNotes( '.ui-dialog' );
-            this.data.items = $.extend( tableValues, this.data.items );
-            this.listingsForMaster = await this.setupListingsForMaster();
-            // this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-
-            this.renderTable({ isNewPo: true });
+            this.openManageModal({ isNewPo: isNewPo });
         });
 
         // Creates new listing in modal
@@ -117,7 +76,7 @@ class InjectScript {
                 if( listingItem ){
                     listingItem[field] = value;
                 }
-                this.validateInputs();
+                // this.validateInputs();
             }
         });
 
@@ -205,18 +164,23 @@ class InjectScript {
         });
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
-    openManageModal() {
-        $('body').append('<div id="ext-modal"></div>' );
-        $('#ext-modal').html( extModalTemplate() );
-        // let self = this;
+    openManageModal( options ) {
         async function getDataForModal( self ){
-            self.listingsForMaster = await self.setupListingsForMaster();
-            self.tempData = new PoObject( self.data );
-            self.renderTable({ isNewPo: false });
+            let data = {};
+            if( options.isNewPo ){
+                let tableValues = await self.getNewTableValues( '#newPoItemsGrid' );
+                data = await self.checkNotes( '.ui-dialog' );
+                data.items = tableValues.map( value => new ItemObject( value ) );
+            } else {
+                data = await new PoObject( self.data );
+            }
+            self.listingsForMaster = await self.setupListingsForMaster( data, self.authToken );
+            self.tempData = data;
+            self.renderTable({ isNewPo: options.isNewPo, data: data });
         }
         getDataForModal( this );
     }
-    setupListingsForMaster(){
+    setupListingsForMaster( data, authToken ){
         async function getListingsForMaster( masters, authToken  ){
             let data, result, listingsForMaster;
             data = {
@@ -248,20 +212,18 @@ class InjectScript {
             return await listingsForMaster;
         }
 
-        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-        return getListingsForMaster( this.tempData.items, this.authToken );
+        return getListingsForMaster( data.items, authToken );
     }
     renderTable( options ){
-        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-
+        let data = options.data;
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( this.tempData, options.isNewPo ) );
-            let templates = this.tempData.items.map( item => extMasterSku( item ) );
+            el.html( extModalTable( data, options.isNewPo ) );
+            let templates = data.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
-            this.tempData.items.forEach( item => this.renderListing( item ) );
+            data.items.forEach( item => this.renderListing( item ) );
 
             el.find( 'select' ).select2({
                 dropdownParent: el,
@@ -274,7 +236,7 @@ class InjectScript {
             return extListingsDropdown( listing.listingSku, item.listingSku );
         });
         let rows = master.listings.map( item => {
-            this.validateInputs();
+            // this.validateInputs( master );
             let optionsArray = [];
             if( this.listingsForMaster[item.parent] ){
                 optionsArray = optionsString( item );
@@ -328,11 +290,11 @@ class InjectScript {
         return poObject;
     }
     poLoaded(){
-        waitFor( '#poItemsGrid' ).then( async (container) => {
+        waitFor( '#poItemsGrid' ).then( container => {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
-            $('#ext-managePoItem').html(extButton('managePoItems'));
+            $('#ext-managePoItem').html( extButton( 'existingPO' ) );
 
-            this.setUpNotes('#poDetailsPane');
+            this.setUpNotes( '#poDetailsPane' );
             this.data = this.checkNotes( '#poDetailsPane' );
             this.data.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
             let tableValues = this.getTableValues( container );
@@ -345,8 +307,7 @@ class InjectScript {
 
     poCreated(){
         waitFor( '#newPoItemsGrid' ).then( container => {
-            $('.ui-dialog-buttonset').find( 'button' ).first().after( extButton( 'newManagePoItems') );
-            $('.ui-dialog-buttonset').find( 'button' ).first().hide();
+            $('.ui-dialog-buttonset').find( 'button' ).first().hide().after( extButton( 'newPO' ) );
             this.setUpNotes( '#newPoForm' );
         });
     }
@@ -456,47 +417,4 @@ class InjectScript {
             this.openManageModal();
         }
     }
-}
-
-let authTokenFromStorage = chrome.storage.sync.get('authToken', item => {
-    checkToken( item.authToken );
-    return item.authToken;
-});
-
-function checkToken( authToken, response ){
-    let msg = '';
-    if( authToken ){
-        testAuth( authToken );
-    } else {
-        if( response ){
-            msg = `That token didn't work. You entered: \n\n      ${response} \n\nTry again. `;
-        }
-        let auth = prompt( `${msg}Enter the token to access the Skubana API:` );
-        if( auth ){
-            testAuth( auth );
-        } else {
-            alert('In order to use this Chrome Extension, you will need the token to access the Skubana API. \n\nThe Manage button is not available.');
-        }
-    }
-}
-
-function testAuth( token ){
-    $.ajax({
-        url: `https://app.skubana.com/service/v1/listings`,
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        data: {
-            'limit': 1
-        },
-        success: function( response ){
-            chrome.storage.sync.set({ 'authToken': token });
-            let injectScript = new InjectScript();
-            injectScript.authToken = token;
-        },
-        error: function( response ){
-            chrome.storage.sync.remove('authToken');
-            checkToken( null, token );
-        }
-    });
 }

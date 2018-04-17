@@ -65,10 +65,10 @@ const extInternalNoteMsg = function(){
     `;
 };
 
-const extButton = function(id){
+const extButton = function( type ){
     return `
-        <button id="${id}"
-            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
+        <button id="managePoItems"
+            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary ${ type }" role="button">
             <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
             <span class="ui-button-text">Manage</span>
         </button>
