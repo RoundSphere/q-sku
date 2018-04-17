@@ -109,13 +109,16 @@ class InjectScript {
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
+            this.closeManageModal();
             // delete this.tempData;
-            if( $('#ext-modal').length ){
-                $('#ext-modal').remove();
-            } else {
-                $('.modal__content').remove();
-            }
         });
+    }
+    closeManageModal(){
+        if( $('#ext-modal').length ){
+            $('#ext-modal').remove();
+        } else {
+            $('.modal__content').remove();
+        }
     }
 
     validateInputs(){
@@ -145,7 +148,8 @@ class InjectScript {
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
     openManageModal() {
-        async function getDataForModal( self ){
+        let self = this;
+        async function getDataForModal(){
             let data = {};
             if( self.type === 'newPO' ){
                 let tableValues = await self.getNewTableValues( '#newPoItemsGrid' );
@@ -160,7 +164,7 @@ class InjectScript {
             self.tempData = data;
             self.renderTable({ data: data });
         }
-        getDataForModal( this );
+        getDataForModal();
     }
     setupListingsForMaster( data, authToken ){
         async function getListingsForMaster( masters, authToken  ){
@@ -380,28 +384,27 @@ class InjectScript {
     savePoDetails( options ){
         // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         // $('button#updatePoDetails').trigger( 'click' );
+        console.log( options, this );
         if( options.isModal ){
             if( this.type === 'newPO' ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
                 console.log( JSON.stringify( this.data, null, 4 ), JSON.stringify( this.tempData, null, 4 )  );
                 // save.trigger('click');
             } else if( this.type === 'existingPO' ){
-                let modal = $('#ext-modal');
-                let innerModal = $('.modal__content' );
-                if( innerModal.length ){
-                    if( modal.length ){
-                        // modal.remove();
-                    } else {
-                        // innerModal.remove();
-                    }
-                    // delete this.tempData;
-                }
+                // should probably be set up to only close the modal after a successful response
+                // this.data.postToAirtable();
+                this.closeManageModal();
+
+                // Probably only delete the data once the response is successful
+                // delete this.tempData;
             } else {
                 console.log( 'Something went wrong. The type of PO was not set' );
                 return;
             }
 
         }
+
+        // This is probably dumb. Should probably be a different method
         if( options.listingNeedsUpdating ){
             this.openManageModal();
         }
