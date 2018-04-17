@@ -23,17 +23,17 @@ class InjectScript {
         // Open Manage Modal for existing PO
         $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
-            let isNewPo = true;
-            if( $( e.currentTarget ).hasClass( 'existingPO' ) ){
+            if( this.type === 'existingPO' ){
                 $('body').append('<div id="ext-modal"></div>' );
                 await $('#ext-modal').html( extModalTemplate() );
-                isNewPo = false;
-            }
-            if( $( e.currentTarget ).hasClass( 'newPO' ) ){
+            } else if( this.type === 'newPO' ){
                 await $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
+            } else {
+                console.log( 'Something went wrong. The type of PO was not set' );
+                return;
             }
 
-            this.openManageModal({ isNewPo: isNewPo });
+            this.openManageModal();
         });
 
         // Creates or deletes listing in modal
@@ -75,23 +75,14 @@ class InjectScript {
         });
 
         // Save Listings on previously created po
-        $(document).on('click', '#savePoDetails', (e) => {
+        $(document).on('click', '#savePoDetails', e => {
             e.preventDefault();
-            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
+            let el = $( e.currentTarget );
+            if( el.hasClass( 'ext-disabled' ) ){
                 return;
             }
             this.data = this.tempData;
-            this.savePoDetails({ isModal: true, scope: '#poDetailsPane' });
-        });
-
-        // Save Listings for new PO
-        $(document).on('click', '#savePoDetails-new', (e) => {
-            e.preventDefault();
-            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
-                return;
-            }
-            this.data = this.tempData;
-            this.savePoDetails({ isModal: true, isNewPo: true, scope: '#newPoForm' });
+            this.savePoDetails({ isModal: true });
         });
 
         // Listener for successful submitnewpo request
@@ -153,19 +144,21 @@ class InjectScript {
         });
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
-    openManageModal( options ) {
+    openManageModal() {
         async function getDataForModal( self ){
             let data = {};
-            if( options.isNewPo ){
+            if( self.type === 'newPO' ){
                 let tableValues = await self.getNewTableValues( '#newPoItemsGrid' );
                 data = await self.checkNotes( '.ui-dialog' );
                 data.items = tableValues.map( value => new ItemObject( value ) );
-            } else {
+            } else if( self.type === 'existingPO' ) {
                 data = await new PoObject( self.data );
+            } else {
+
             }
             self.listingsForMaster = await self.setupListingsForMaster( data, self.authToken );
             self.tempData = data;
-            self.renderTable({ isNewPo: options.isNewPo, data: data });
+            self.renderTable({ data: data });
         }
         getDataForModal( this );
     }
@@ -208,7 +201,7 @@ class InjectScript {
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( data, options.isNewPo ) );
+            el.html( extModalTable( data ) );
             let templates = data.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
@@ -282,6 +275,7 @@ class InjectScript {
         waitFor( '#poItemsGrid' ).then( container => {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html( extButton( 'existingPO' ) );
+            this.type = 'existingPO';
 
             this.setUpNotes( '#poDetailsPane' );
             this.data = this.checkNotes( '#poDetailsPane' );
@@ -297,6 +291,7 @@ class InjectScript {
     poCreated(){
         waitFor( '#newPoItemsGrid' ).then( container => {
             $('.ui-dialog-buttonset').find( 'button' ).first().hide().after( extButton( 'newPO' ) );
+            this.type = 'newPO';
             this.setUpNotes( '#newPoForm' );
         });
     }
@@ -378,7 +373,7 @@ class InjectScript {
         });
 
         if( somethingChanged ){
-            this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating, scope: '#poDetailsPane' });
+            this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating });
         }
     }
 
@@ -386,21 +381,26 @@ class InjectScript {
         // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         // $('button#updatePoDetails').trigger( 'click' );
         if( options.isModal ){
-            if( options.isNewPo ){
+            if( this.type === 'newPO' ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
                 console.log( JSON.stringify( this.data, null, 4 ), JSON.stringify( this.tempData, null, 4 )  );
-                save.trigger('click');
-            }
-            let modal = $('#ext-modal');
-            let innerModal = $('.modal__content' );
-            if( innerModal.length ){
-                if( modal.length ){
-                    modal.remove();
-                } else {
-                    innerModal.remove();
+                // save.trigger('click');
+            } else if( this.type === 'existingPO' ){
+                let modal = $('#ext-modal');
+                let innerModal = $('.modal__content' );
+                if( innerModal.length ){
+                    if( modal.length ){
+                        // modal.remove();
+                    } else {
+                        // innerModal.remove();
+                    }
+                    // delete this.tempData;
                 }
-                // delete this.tempData;
+            } else {
+                console.log( 'Something went wrong. The type of PO was not set' );
+                return;
             }
+
         }
         if( options.listingNeedsUpdating ){
             this.openManageModal();
