@@ -42,38 +42,44 @@ function testAuth( token ){
     });
 }
 
-
-
-/// This probably wont be used anymore if the endpoints work correctly
-
-function parseListing( data ){
-    let fData = data;
-    if( data.fields ){
-        let response = data.fields;
-        fData = {
-            listingSku    : response["Listing SKU"],
-            listingQty    : response["Outgoing Stock or listingQty"],
-            sendToFBA     : response["sendToFBA"],
-            ltl           : response["LTL warning"],
-            qSkuId        : response["QSkuId"],
-            qSkuMasterSku : response["QSkuMasterSku"],
-            parent        : response["QSkuMasterSku"].trim().replace( /\s/g, '-' ).toLowerCase()
-        }
-    }
-    return fData;
-}
-
-async function getListingsFromAirtable( id ){
+async function getPO( id ){
     let settings = {
-        url     : 'https://api.airtable.com/v0/appzVvw2EEvwkrlgA/allocations_test',
-        method  : "GET",
-        headers : {
-            Authorization : "Bearer key6WCg4VxCEwTlw4"
-        },
-        data: {
-            filterByFormula: `{QSkuId} = ${ id }`
-        }
+        url     : 'https://da-dev.us/quantum/getpo/' + id,
+        method  : "GET"
     };
     let result = await ajax( settings );
-    return await result;
+    return await JSON.parse( result );
+}
+
+async function createPO( data ){
+    let settings = {
+        url         : 'https://da-dev.us/quantum/newpo',
+        method      : "POST",
+        data        : JSON.stringify( data ),
+        contentType : "application/json",
+        dataType    : "json"
+    };
+    let result = await ajax( settings );
+    return await JSON.parse( result );
+}
+
+async function updatePO( data ){
+    let settings = {
+        url     : 'http://da-dev.us/quantum/changepo',
+        method  : "PUT",
+        data        : JSON.stringify( data ),
+        contentType : "application/json",
+        dataType    : "json"
+    };
+    let result = await ajax( settings );
+    return await JSON.parse( result );
+}
+
+async function deletePO( id ){
+    let settings = {
+        url     : 'https://da-dev.us/quantum/rmpo/' + id,
+        method  : "DELETE"
+    };
+    let result = await ajax( settings );
+    return await JSON.parse( result );
 }

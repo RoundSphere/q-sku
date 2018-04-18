@@ -65,7 +65,7 @@ class InjectScript {
                 if( listingItem ){
                     listingItem[field] = value;
                 }
-                // this.validateInputs();
+                this.validateInputs();
             }
         });
 
@@ -74,7 +74,7 @@ class InjectScript {
             this.tempData.additionalNotes = $( e.currentTarget ).val();
         });
 
-        // Save Listings on previously created po
+        // Save Listings
         $(document).on('click', '#savePoDetails', e => {
             e.preventDefault();
             let el = $( e.currentTarget );
@@ -100,9 +100,9 @@ class InjectScript {
                     }
                 };
                 let openPOs = await ajax( settings );
-                let findPo = openPOs.find( po => po.internalNotes.indexOf( this.data.qSkuId ) > -1 );
+                let findPo = openPOs.find( po => po.internalNotes.indexOf( this.qSkuId ) > -1 );
                 this.data.id = findPo.number;
-                this.data.postToAirtable();
+                await createPO( this.data );
             }
         });
 
@@ -148,21 +148,18 @@ class InjectScript {
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
     openManageModal() {
-        let self = this;
-        async function getDataForModal(){
-            let data = {};
-            if( self.type === 'newPO' ){
-                let tableValues = await self.getNewTableValues( '#newPoItemsGrid' );
-                data = await self.checkNotes( '.ui-dialog' );
-                data.items = tableValues.map( value => new ItemObject( value ) );
-            } else if( self.type === 'existingPO' ) {
-                data = await new PoObject( self.data );
-            } else {
-
+        var getDataForModal = async () => {
+            let data = this.data;
+            if( this.type === 'newPO' ){
+                data.items = await this.getNewTableValues( '#newPoItemsGrid' );
+            } else if( this.type !== 'existingPO' ) {
+                console.log( 'Something went wrong. The type of PO was not set' );
+                return;
             }
-            self.listingsForMaster = await self.setupListingsForMaster( data, self.authToken );
-            self.tempData = data;
-            self.renderTable({ data: data });
+            data = new PoObject( data );
+            this.listingsForMaster = await this.setupListingsForMaster( data, this.authToken );
+            this.tempData = data;
+            this.renderTable({ data: data });
         }
         getDataForModal();
     }
@@ -222,7 +219,7 @@ class InjectScript {
             return extListingsDropdown( listing.listingSku, item.listingSku );
         });
         let rows = master.listings.map( item => {
-            // this.validateInputs( master );
+            this.validateInputs( master );
             let optionsArray = [];
             if( this.listingsForMaster[item.parent] ){
                 optionsArray = optionsString( item );
@@ -242,13 +239,35 @@ class InjectScript {
     setUpNotes( scope ){
         // Diable #internalNotes
         let notes = $(`${scope} #internalNotes`);
+        let value = notes.val();
         // notes.attr( 'readonly', true ).hide();
         notes.attr( 'readonly', true );
         notes.removeAttr( 'maxlength' );
         notes.before( extInternalNoteMsg() );
+
+        let data = {};
+        if( value ){
+            let validJson = tryParseJSON( value );
+            if( validJson ){
+                // This JSON needs to be parsed and combined with/compared to the response data IF there is already a qSkuId in the additionalNotes field
+                // data = this.parseData( validJson );
+                data = validateJson( validJson )
+            } else {
+                // This is not JSON and the value should be added to the additionalNotes field of this.data
+                data = {
+                    additionalNotes: value
+                };
+            }
+        }
+        if( this.type === 'newPO' ){
+            notes.val( this.checkNotes( value ) );
+        }
+
+        return data;
+
     }
-    checkNotes( scope ){
-        let notesVal = $(`${scope} #internalNotes`).val();
+    checkNotes( value ){
+        let notesVal = value;
         let qSkuId = Math.round( ( new Date() ).getTime() / 1000 );
         let qSkuIdString = '*** q-SKU PO ID: ';
         let qSkuIdPos = notesVal.indexOf( qSkuIdString );
@@ -257,38 +276,34 @@ class InjectScript {
             qSkuId = notesVal.slice( qSkuIdStart, notesVal.indexOf( '***', qSkuIdStart ) ).trim();
         }
         let qSkuIdLookup = `${ qSkuIdString + qSkuId } ***`;
-        $(`${scope} #internalNotes` ).val( qSkuIdLookup );
 
-        let data = {};
-        if( notesVal ){
-            let validJson = tryParseJSON( notesVal );
-            if( validJson ){
-                data = validateJson( validJson );
-                data.qSkuId = qSkuId;
-                data.airTableLookup = qSkuIdLookup;
-            } else {
-                data = { additionalNotes: notesVal, qSkuId: qSkuId, airTableLookup: qSkuIdLookup };
-            }
-        } else {
-            data = { qSkuId: qSkuId, airTableLookup: qSkuIdLookup };
-        }
-        let poObject = new PoObject( data );
-        return poObject;
+        this.qSkuId = qSkuId;
+        this.airTableLookup = qSkuIdLookup;
+
+        return qSkuIdLookup;
     }
     poLoaded(){
-        waitFor( '#poItemsGrid' ).then( container => {
+        waitFor( '#poItemsGrid' ).then( async container => {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
             $('#ext-managePoItem').html( extButton( 'existingPO' ) );
             this.type = 'existingPO';
 
-            this.setUpNotes( '#poDetailsPane' );
-            this.data = this.checkNotes( '#poDetailsPane' );
-            this.data.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
-            let tableValues = this.getTableValues( container );
-            getListingsFromAirtable( this.data.qSkuId ).then( data => {
-                this.data.hydrateFromAirtable( data );
-                this.checkPoForUpdate( tableValues )
-            })
+            let data = this.setUpNotes( '#poDetailsPane' );
+
+            data.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+            let tableValues = await this.getTableValues( container );
+            let requestValues = await getPO( data.id );
+            let comparedData = {
+                items: [],
+                id: data.id,
+                additionalNotes: data.additionalNotes || ''
+            };
+            if( data.hasOwnProperty( 'items' ) ){
+                comparedData.items = this.checkPoForUpdate( tableValues, data );
+            }
+            comparedData.items = this.checkPoForUpdate( tableValues, requestValues );
+
+            this.data = comparedData;
         });
     }
 
@@ -297,6 +312,7 @@ class InjectScript {
             $('.ui-dialog-buttonset').find( 'button' ).first().hide().after( extButton( 'newPO' ) );
             this.type = 'newPO';
             this.setUpNotes( '#newPoForm' );
+            this.data = {};
         });
     }
 
@@ -334,8 +350,11 @@ class InjectScript {
         });
         return masterSkusFromTable;
     }
-    checkPoForUpdate( tableValues ){
-        let dataset = this.data.items;
+    checkPoForUpdate( tableValues, requestedValues ){
+        if( ! requestedValues.length ){
+            return tableValues;
+        }
+        let dataset = requestedValues.items;
         let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
         let removed = dataset.filter( data => tableValues.map( item => item.id ).indexOf( data.id ) === -1 );
         let somethingChanged = false;
@@ -379,17 +398,15 @@ class InjectScript {
         if( somethingChanged ){
             this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating });
         }
+        return dataset;
     }
 
     savePoDetails( options ){
-        // $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
         // $('button#updatePoDetails').trigger( 'click' );
-        console.log( options, this );
         if( options.isModal ){
             if( this.type === 'newPO' ){
                 let save = $('.ui-dialog-buttonset').find( 'button' ).first();
-                console.log( JSON.stringify( this.data, null, 4 ), JSON.stringify( this.tempData, null, 4 )  );
-                // save.trigger('click');
+                save.trigger('click');
             } else if( this.type === 'existingPO' ){
                 // should probably be set up to only close the modal after a successful response
                 // this.data.postToAirtable();

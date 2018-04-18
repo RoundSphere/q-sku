@@ -10,7 +10,8 @@
     "permissions": [
         "storage",
         "webRequest",
-        "*://app.skubana.com/*"
+        "*://app.skubana.com/*",
+        "*://da-dev.us/*"
     ],
     "background": {
         "scripts" : ["background.js"],
