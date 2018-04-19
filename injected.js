@@ -104,6 +104,22 @@ class InjectScript {
                 this.data.id = findPo.number;
                 await createPO( this.data );
             }
+            if( request.cancelPoSuccess ){
+                this.posToCancel.forEach( item => {
+                    await deletePO( item );
+                });
+                delete this.posToCancel;
+            }
+        });
+
+        // Cancel PO
+        $( document ).on( 'click', '#centerCenterPanel', e => {
+            let el = $( e.currentTarget );
+            let container = el.closest( '#centerCenterPanel' );
+            let inputs = container.find( 'td[aria-describedby="ordersGrid_cb"] input[type="checkbox"]:checked' );
+            this.posToCancel = Array.from( inputs ).map( item  => {
+                return $( item ).closest( 'tr' ).find( 'td[aria-describedby="ordersGrid_number"]' ).text();
+            });
         });
 
         // Close Manage PO Modal
