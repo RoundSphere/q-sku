@@ -1,6 +1,6 @@
 class InjectScript {
     constructor() {
-        console.clear();
+        // console.clear();
         console.log( '***** Content Script ******' );
         console.log("InjectScript loaded");
         this.registerEventHandlers();
