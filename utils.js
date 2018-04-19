@@ -1,18 +1,11 @@
-function ajax(data, token) {
+function ajax(settings) {
     return new Promise(function(resolve, reject) {
-        $.ajax({
-            url: `https://app.skubana.com/service/v1/listings`,
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
-            data: data,
-            success: function( response ){
-                resolve( response );
-            },
-            error: function( response ){
-                reject( response );
-            }
-        });
+        settings.success = response => resolve( response );
+        settings.error = ( response, error, msg ) => {
+            console.log( response, error, msg );
+            reject( response );
+        }
+        $.ajax(settings);
     });
 }
 
@@ -47,68 +40,6 @@ function commafy(num) {
     return str.join('.');
 }
 
-function validateJson( value ){
-    let errors = [];
-
-    if( ! value.hasOwnProperty( 'id' ) ){
-        errors.push( 'id is broken' );
-    } else {
-        if( typeof value.id != 'string' ){
-            errors.push( 'id is not a string' );
-        }
-    }
-
-    if( ! value.hasOwnProperty( 'items' ) ){
-        errors.push( 'items is broken' );
-    } else {
-        if( ! Array.isArray( value.items ) ){
-            errors.push( 'items is not an array' );
-        } else {
-            value.items.forEach((item, idx) => {
-                if( ! item.hasOwnProperty( 'id' ) ){
-                    errors.push( '-item ' + idx + ' is missing id' );
-                }
-                if( ! item.hasOwnProperty( 'masterQty' ) ){
-                    errors.push( '-item ' + idx + ' is missing masterQty' );
-                }
-                if( ! item.hasOwnProperty( 'listings' ) ){
-                    errors.push( '-item ' + idx + ' is missing listings' );
-                } else {
-                    if( ! Array.isArray( item.listings ) ){
-                        errors.push( '-item ' + idx + ' is not an array' );
-                    } else {
-                        item.listings.forEach((listing, key) => {
-                            if( ! listing.hasOwnProperty( 'listingSku' ) ){
-                                errors.push( '-- ' + key + ' is missing listingSku' );
-                            }
-                            if( ! listing.hasOwnProperty( 'listingQty' ) ){
-                                errors.push( '-- ' + key + ' is missing listingQty' );
-                            }
-                            // if( ! listing.hasOwnProperty( 'sendToFBA' ) ){
-                            //     errors.push( '-- ' + key + ' is missing sendToFBA' );
-                            // }
-                            // if( ! listing.hasOwnProperty( 'ltl' ) ){
-                            //     errors.push( '-- ' + key + ' is missing ltl' );
-                            // }
-                        });
-                    }
-                }
-            });
-        }
-    }
-
-    if( ! value.hasOwnProperty( 'additionalNotes' ) ){
-        errors.push( 'additionalNotes is broken' );
-    }
-
-    if( errors.length > 0 ){
-        alert( 'Something is wrong: \n-' + errors.join( '\n-' ) );
-    } else {
-        console.log( 'the json from the notes is valid and ready to be updated' );
-        return value;
-    }
-}
-
 function waitFor(selector) {
     return new Promise((resolve) => {
         let resolved = false;
@@ -135,7 +66,11 @@ function waitFor(selector) {
     });
 }
 function wait(time) {
+    console.log( 'wait started' );
     return new Promise((resolve) => {
-        setTimeout(resolve, time);
+        setTimeout(function(){
+            console.log( 'waits over' );
+            return resolve();
+        }, time);
     });
 }

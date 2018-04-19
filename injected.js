@@ -1,56 +1,6 @@
-class PoObject {
-    constructor( options ) {
-        let items  = options.items;
-        this.id    = options.id || '';
-        this.items = items ? items.map( item => new ItemObject( item ) ) : [];
-        this.additionalNotes = options.additionalNotes || '';
-    }
-}
-class ItemObject {
-    constructor( options ){
-        this.id        = options.id;
-        this.masterSku = options.masterSku;
-        this.masterQty = options.masterQty;
-
-        let defaults = {
-            masterSku  : options.masterSku,
-            listingQty : options.masterQty,
-            parent     : options.id,
-            sendToFBA  : true
-        };
-        let listings  = options.listings;
-        this.listings = listings ? listings.map( listing => new ListingObject( listing ) ) : [ new ListingObject( defaults ) ];
-    }
-    addListing(){
-        let newListing = new ListingObject({ masterSku: this.masterSku, listingQty: "0", parent: this.id, sendToFBA: true });
-        this.listings.push( newListing );
-        return this;
-    }
-    removeListing( listingId ){
-        let item = this.listings.find( listing => listing.id === listingId );
-        let index = this.listings.indexOf( item );
-
-        if( index > -1 ){
-            this.listings.splice(index, 1);
-        }
-        return this;
-    }
-}
-class ListingObject{
-    constructor( options ){
-        this.id         = options.id || options.parent + '_' + Date.now();
-        this.masterSku  = options.masterSku;
-        this.listingSku = options.listingSku || options.masterSku;
-        this.listingQty = options.listingQty;
-        this.sendToFBA  = options.sendToFBA;
-        this.ltl        = options.ltl;
-        this.parent     = options.parent;
-    }
-}
-
 class InjectScript {
     constructor() {
-        // console.clear();
+        console.clear();
         console.log( '***** Content Script ******' );
         console.log("InjectScript loaded");
         this.registerEventHandlers();
@@ -60,50 +10,45 @@ class InjectScript {
         });
     }
     handleSummary( summary ){
-        if( summary[1].added.length ){
-            this.poCreated();
-            return;
-        }
         if( summary[0].added.length ){
             this.poLoaded();
             return;
         }
+        if( summary[1].added.length ){
+            this.poCreated();
+            return;
+        }
     }
     registerEventHandlers() {
-        // Open Manage PO Modal
-        $(document).on('click', '#managePoItems', (e) => {
+        // Open Manage Modal
+        $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
+            if( this.type === 'existingPO' ){
+                $('body').append('<div id="ext-modal"></div>' );
+                await $('#ext-modal').html( extModalTemplate() );
+            } else if( this.type === 'newPO' ){
+                await $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
+            } else {
+                console.log( 'Something went wrong. The type of PO was not set' );
+                return;
+            }
+
             this.openManageModal();
         });
 
-        // Open Manage New PO Modal
-        $(document).on('click', '#newManagePoItems', (e) => {
-            e.preventDefault();
-            let tableValues = this.getNewTableValues( '#newPoItemsGrid' );
-            this.data = this.checkNotes('', '.ui-dialog' );
-            this.data.items = $.extend( tableValues, this.data.items );
-            $(e.currentTarget).closest( '.ui-dialog' ).append( '<div class="modal__content" />' );
-            this.setupListingsForMaster( true );
-        });
-        $(document).on('click', '.createNew', (e) => {
+        // Creates or deletes listing in modal
+        $(document).on('click', '.addDeleteListing', e => {
             e.preventDefault();
             let el = $( e.currentTarget );
             let id = el.data( 'itemid' ).toString();
             let masterItem = this.tempData.items.find( item => item.id === id );
-            let newMasterItem = masterItem.addListing();
+            let listingId = el.hasClass( 'deleteRow' ) ? el.data( 'listingid' ).toString() : '';
+            let newMasterItem = masterItem[ el.hasClass( 'deleteRow' ) ? 'removeListing' : 'addListing' ]( listingId );
 
             this.renderListing( newMasterItem, this.listingsForMaster[id] );
         });
-        $(document).on('click', '.deleteRow', (e) => {
-            e.preventDefault();
-            let el = $( e.currentTarget );
-            let id = el.data( 'itemid' ).toString();
-            let masterItem = this.tempData.items.find( item => item.id === id );
-            let listingId = el.data( 'listingid' ).toString();
-            let newMasterItem = masterItem.removeListing( listingId );
 
-            this.renderListing( newMasterItem, this.listingsForMaster[id] );
-        });
+        // Validates inputs on change in modal
         $(document).on('change', '.modal__content input[data-details], .modal__content select[data-details]', e => {
             let input = $( e.currentTarget );
             let listingContainer = input.closest( '.listingSku' );
@@ -123,45 +68,69 @@ class InjectScript {
                 this.validateInputs();
             }
         });
+
+        // Adds notes to PO
         $(document).on('change', 'textarea[data-details]', e => {
             this.tempData.additionalNotes = $( e.currentTarget ).val();
         });
 
-        $(document).on('click', '#savePoDetails', (e) => {
+        // Save Listings
+        $(document).on('click', '#savePoDetails', e => {
             e.preventDefault();
-            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
+            let el = $( e.currentTarget );
+            if( el.hasClass( 'ext-disabled' ) ){
                 return;
             }
             this.data = this.tempData;
-            this.savePoDetails({ isModal: true, scope: '#poDetailsPane' });
+            this.savePoDetails();
         });
-        $(document).on('click', '#savePoDetails-new', (e) => {
-            e.preventDefault();
-            if( $( e.currentTarget ).hasClass( 'ext-disabled' ) ){
-                return;
+
+        // Listener for successful submitnewpo/cancel request
+        chrome.runtime.onMessage.addListener( async request => {
+            if( request.newPoSuccess ){
+                this.data.id = await this.data.getId( this.authToken, this.qSkuId );
+                this.data.create( this.authToken );
             }
-            this.data = this.tempData;
-            this.savePoDetails({ isModal: true, isNewPo: true, scope: '#newPoForm' });
+            if( request.cancelPoSuccess ){
+                this.posToCancel.forEach( async item => {
+                    await deletePO( item, this.authToken );
+                });
+            }
         });
+
+        // Cancel PO
+        $( document ).on( 'click', '#centerCenterPanel #cancel', e => {
+            let el = $( e.currentTarget );
+            let container = el.closest( '#centerCenterPanel' );
+            let inputs = container.find( 'td[aria-describedby="ordersGrid_cb"] input[type="checkbox"]:checked' );
+            this.posToCancel = Array.from( inputs ).map( item  => {
+                return $( item ).closest( 'tr' ).find( 'td[aria-describedby="ordersGrid_number"]' ).text();
+            });
+        });
+
         // Close Manage PO Modal
         $(document).on('click', '.ext-modal-close', e => {
             e.preventDefault();
-            delete this.tempData;
-            if( $('#ext-modal').length ){
-                $('#ext-modal').remove();
-            } else {
-                $('.modal__content').remove();
-            }
+            this.closeManageModal();
+            // delete this.tempData;
         });
     }
+    closeManageModal(){
+        if( $('#ext-modal').length ){
+            $('#ext-modal').remove();
+        } else {
+            $('.modal__content').remove();
+        }
+    }
+
     validateInputs(){
         let valid = true;
         let masterItems = this.tempData.items;
         masterItems.forEach( item => {
             let masterValid = true;
             let noZeros = true;
-            let masterContainer = $(`.master__container[data-masterid=${item.id}]`);
-            let inputs = $(`.listingSku[data-masterid=${item.id}] input[data-details=listingQty]`);
+            let masterContainer = $(`.master__container[data-masterid="${item.id}"]`);
+            let inputs = $(`.listingSku[data-masterid="${item.id}"] input[data-details=listingQty]`);
 
             let listingsQtys = item.listings.map( listing => listing.listingQty );
             let listingsTotal = listingsQtys.reduce( ( total, value ) => parseInt( total ) + parseInt( value ) );
@@ -181,44 +150,65 @@ class InjectScript {
         $('#savePoDetails')[ valid ? 'removeClass' : 'addClass' ]( 'ext-disabled' );
     }
     openManageModal() {
-        $('body').append('<div id="ext-modal"></div>' );
-        $('#ext-modal').html( extModalTemplate());
-        this.setupListingsForMaster();
+        var getDataForModal = async () => {
+            let data = this.data;
+            if( this.type === 'newPO' ){
+                data.items = await this.getNewTableValues( '#newPoItemsGrid' );
+            } else if( this.type !== 'existingPO' ) {
+                console.log( 'Something went wrong. The type of PO was not set' );
+                return;
+            }
+            data = new PoObject( data );
+            this.listingsForMaster = await this.setupListingsForMaster( data, this.authToken );
+            this.tempData = data;
+            this.renderTable({ data: data });
+        }
+        getDataForModal();
     }
-    setupListingsForMaster( isNewPo ){
-        this.listingsForMaster = {};
-        let self = this;
-
-        async function getListingsForMaster( masters ){
-            let data = {
-                masterSku: masters.map( item => item.masterSku ).join( ',' ),
-                limit: 500,
-                salesChannelId: 5394
+    setupListingsForMaster( data, authToken ){
+        async function getListingsForMaster( masters, authToken  ){
+            let data, result, listingsForMaster;
+            data = {
+                url: "https://app.skubana.com/service/v1/listings",
+                data: {
+                    masterSku: masters.map( item => item.masterSku ).join( ',' ),
+                    limit: 500,
+                    salesChannelId: 5394
+                },
+                headers: {
+                    Authorization : "Bearer " + authToken
+                }
             };
-            let result = await ajax( data, self.authToken );
+            result = await ajax( data );
+            listingsForMaster = {};
             masters.forEach( master => {
                 // Get bundled skus from allBundledSkus const in bundled-skus.js
                 let bundledSkus = allBundledSkus.filter( bundleSku => master.masterSku == bundleSku.masterSku );
                 let filteredListings = result.filter( listing => listing.masterSku === master.masterSku );
-                let combo = filteredListings.concat( bundledSkus );
-
-                self.listingsForMaster[master.id] = combo;
+                let custom = master.listings.map( listing => {
+                    return {
+                        masterSku: listing.masterSku,
+                        listingSku: listing.listingSku
+                    }
+                });
+                let combo = filteredListings.concat( bundledSkus, custom );
+                listingsForMaster[master.id] = combo;
             });
-            self.renderTable( isNewPo );
+            return await listingsForMaster;
         }
 
-        this.tempData = new PoObject( JSON.parse( JSON.stringify( this.data ) ) );
-        getListingsForMaster( this.tempData.items );
+        return getListingsForMaster( data.items, authToken );
     }
-    renderTable( isNewPo ){
+    renderTable( options ){
+        let data = options.data;
         let el = $('.modal__content');
         if( el.length ){
             // Render table
-            el.html( extModalTable( this.tempData, isNewPo ) );
-            let templates = this.tempData.items.map( item => extMasterSku( item ) );
+            el.html( extModalTable( data ) );
+            let templates = data.items.map( item => extMasterSku( item ) );
             el.find('.master-sku-container').html( templates.join('') );
 
-            this.tempData.items.forEach( item => this.renderListing( item ) );
+            data.items.forEach( item => this.renderListing( item ) );
 
             el.find( 'select' ).select2({
                 dropdownParent: el,
@@ -231,10 +221,16 @@ class InjectScript {
             return extListingsDropdown( listing.listingSku, item.listingSku );
         });
         let rows = master.listings.map( item => {
-            this.validateInputs();
-            return extListingSku( item, optionsString( item ).join( '' ), master.listings.length );
+            this.validateInputs( master );
+            let optionsArray = [];
+            if( this.listingsForMaster[item.parent] ){
+                optionsArray = optionsString( item );
+            } else {
+                optionsArray = [ extListingsDropdown( 'No Master SKU', 'No Master SKU') ];
+            }
+            return extListingSku( item, optionsArray.join( '' ), master.listings.length );
         });
-        let masterRow = $(`.master__container[data-masterid=${master.id}]`);
+        let masterRow = $(`.master__container[data-masterid="${master.id}"]`);
         let listingContainer = masterRow.find( '.listings-container' );
         listingContainer.html( rows.join('') );
         listingContainer.find('select').select2({
@@ -245,48 +241,95 @@ class InjectScript {
     setUpNotes( scope ){
         // Diable #internalNotes
         let notes = $(`${scope} #internalNotes`);
+        let value = notes.val();
         notes.attr( 'readonly', true ).hide();
         notes.removeAttr( 'maxlength' );
         notes.before( extInternalNoteMsg() );
-    }
-    checkNotes( poId, scope ){
-        let notesVal = $(`${scope} #internalNotes`).val();
+
         let data = {};
-        if( notesVal ){
-            let validJson = tryParseJSON( notesVal );
+        if( value ){
+            let validJson = tryParseJSON( value );
             if( validJson ){
-                data = validateJson( validJson );
+                data = validJson;
             } else {
-                console.log( 'notes were not json' );
-                data = { id: poId, additionalNotes: notesVal };
+                data = {
+                    additionalNotes: value
+                };
             }
-        } else {
-            console.log( 'no notes. create them' );
-            data = { id: poId };
+        }
+        if( this.type === 'newPO' ){
+            notes.val( this.checkNotes( value ) );
+        }
+        if( this.type === 'existingPO' ){
+            notes.val( '' );
         }
 
-        return new PoObject( data );
+        return data;
+
+    }
+    checkNotes( value ){
+        let notesVal = value;
+        let qSkuId = Math.round( ( new Date() ).getTime() / 1000 );
+        let qSkuIdString = '*** q-SKU PO ID: ';
+        let qSkuIdPos = notesVal.indexOf( qSkuIdString );
+        let qSkuIdStart = qSkuIdPos + qSkuIdString.length
+        if( qSkuIdPos > -1 ){
+            qSkuId = notesVal.slice( qSkuIdStart, notesVal.indexOf( '***', qSkuIdStart ) ).trim();
+        }
+        let qSkuIdLookup = `${ qSkuIdString + qSkuId } ***`;
+
+        this.qSkuId = qSkuId;
+        this.airTableLookup = qSkuIdLookup;
+
+        return qSkuIdLookup;
     }
     poLoaded(){
-        waitFor( '#poItemsGrid' ).then( (container) => {
+        waitFor( '#poItemsGrid' ).then( async container => {
             $('#addPoItemHolder').before( '<div id="ext-managePoItem" />' );
-            $('#ext-managePoItem').html(extButton('managePoItems'));
+            $('#ext-managePoItem').html( extButton( 'existingPO' ) );
+            this.type = 'existingPO';
 
-            let poId = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+            let data = this.setUpNotes( '#poDetailsPane' );
 
-            this.setUpNotes('#poDetailsPane');
-            this.data = this.checkNotes( poId, '#poDetailsPane' );
+            data.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
+            let tableValues = await this.getTableValues( container );
+            let requestValues = await getPO( data.id, this.authToken );
+            let comparedData = {
+                items: tableValues,
+                id: data.id,
+                additionalNotes: data.additionalNotes || ''
+            };
 
-            let tableValues = this.getTableValues( container );
-            this.checkPoForUpdate( tableValues );
+            let updateDetails = {};
+
+            if( data.hasOwnProperty( 'items' ) ){
+                updateDetails = this.checkPoForUpdate( tableValues, data.items );
+            }
+            if( requestValues.hasOwnProperty( 'id' ) ){
+                updateDetails = this.checkPoForUpdate( tableValues, requestValues.items );
+            }
+
+            if( updateDetails.somethingChanged ){
+                comparedData.items = updateDetails.dataset;
+                this.data = new PoObject( comparedData );
+                if( updateDetails.listingNeedsUpdating ){
+                    this.openManageModal();
+                } else {
+                    this.data.update( this.authToken );
+                }
+                return;
+            }
+
+            this.data = comparedData;
         });
     }
 
     poCreated(){
         waitFor( '#newPoItemsGrid' ).then( container => {
-            $('.ui-dialog-buttonset').find( 'button' ).first().after( extButton( 'newManagePoItems') );
-            $('.ui-dialog-buttonset').find( 'button' ).first().hide();
+            $('.ui-dialog-buttonset').find( 'button' ).first().hide().after( extButton( 'newPO' ) );
+            this.type = 'newPO';
             this.setUpNotes( '#newPoForm' );
+            this.data = {};
         });
     }
 
@@ -324,8 +367,7 @@ class InjectScript {
         });
         return masterSkusFromTable;
     }
-    checkPoForUpdate( tableValues ){
-        let dataset = this.data.items;
+    checkPoForUpdate( tableValues, dataset ){
         let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
         let removed = dataset.filter( data => tableValues.map( item => item.id ).indexOf( data.id ) === -1 );
         let somethingChanged = false;
@@ -360,75 +402,28 @@ class InjectScript {
             }
         });
 
-        if( somethingChanged ){
-            this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating, scope: '#poDetailsPane' });
+        let updateDetails = {
+            somethingChanged: somethingChanged,
+            listingNeedsUpdating: listingNeedsUpdating,
+            dataset: dataset
         }
+        return updateDetails;
     }
 
-    savePoDetails( options ){
-        $(`${options.scope} #internalNotes`).val( JSON.stringify( this.data ) ) ;
-        $('button#updatePoDetails').trigger( 'click' );
-        if( options.isModal ){
-            let modal = $('#ext-modal');
-            let innerModal = $('.modal__content' );
-            if( innerModal.length ){
-                if( modal.length ){
-                    modal.remove();
-                } else {
-                    innerModal.remove();
-                }
+    savePoDetails(){
+        if( this.type === 'newPO' ){
+            let save = $('.ui-dialog-buttonset').find( 'button' ).first();
+            save.trigger('click');
+        } else if( this.type === 'existingPO' ){
+            var updateDetails = async () => {
+                await this.data.update( this.authToken );
+                this.closeManageModal();
                 delete this.tempData;
             }
-            if( options.isNewPo ){
-                let save = $('.ui-dialog-buttonset').find( 'button' ).first();
-                save.trigger('click');
-            }
-        }
-        if( options.listingNeedsUpdating ){
-            this.openManageModal();
-        }
-    }
-}
-
-let authTokenFromStorage = chrome.storage.sync.get('authToken', item => {
-    checkToken( item.authToken );
-    return item.authToken;
-});
-
-function checkToken( authToken, response ){
-    let msg = '';
-    if( authToken ){
-        testAuth( authToken );
-    } else {
-        if( response ){
-            msg = `That token didn't work. You entered: \n\n      ${response} \n\nTry again. `;
-        }
-        let auth = prompt( `${msg}Enter the token to access the Skubana API:` );
-        if( auth ){
-            testAuth( auth );
+            updateDetails();
         } else {
-            alert('In order to use this Chrome Extension, you will need the token to access the Skubana API. \n\nThe Manage button is not available.');
+            console.log( 'Something went wrong. The type of PO was not set' );
+            return;
         }
     }
-}
-
-function testAuth( token ){
-    $.ajax({
-        url: `https://app.skubana.com/service/v1/listings`,
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        data: {
-            'limit': 1
-        },
-        success: function( response ){
-            chrome.storage.sync.set({ 'authToken': token });
-            let injectScript = new InjectScript();
-            injectScript.authToken = token;
-        },
-        error: function( response ){
-            chrome.storage.sync.remove('authToken');
-            checkToken( null, token );
-        }
-    });
 }

@@ -9,7 +9,7 @@ const extMasterSku = function( item ){
         <div class="masterItem master__container" data-masterid="${item.id}">
             <div class="ext-title"><strong>${item.masterSku} :: Qty: ${item.masterQty}</strong></div>
             <div class="ext-flex">
-                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createNew">Split</a></div>
+                <div class="ext-flex-item"><a data-itemid="${item.id}" href="#" class="createRow addDeleteListing">Split</a></div>
                 <div class="ext-flex-item--full">Listing SKU</div>
                 <div class="ext-flex-item">Quantity</div>
                 <div class="ext-flex-item">Send to FBA?</div>
@@ -21,7 +21,7 @@ const extMasterSku = function( item ){
 };
 
 const extListingSku = function( item, optionsString, listingsLength ){
-    let removeBtn = `<a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow">Remove</a>`;
+    let removeBtn = `<a data-listingid="${item.id}" data-itemid="${item.parent}" href="#" class="deleteRow addDeleteListing">Remove</a>`;
     return `
         <div class="ext-flex listingSku" data-masterid="${item.parent}" data-listingid="${item.id}">
             <div class="ext-flex-item">${ listingsLength > 1 ? removeBtn : ''}</div>
@@ -37,7 +37,7 @@ const extListingSku = function( item, optionsString, listingsLength ){
     `;
 };
 
-const extModalTable = function( data, isNewPo ){
+const extModalTable = function( data ){
     return `
         <p><strong>PO #: </strong> - ${data.id}</p>
         <div class="master-sku-container"></div>
@@ -46,7 +46,7 @@ const extModalTable = function( data, isNewPo ){
             <textarea data-details="additionalNotes">${data.additionalNotes}</textarea>
         <div class="ext-btn-container">
             <a href="#" class="ext-btn ext-btn-cancel ext-modal-close">Close</a>
-            <a href="#" class="ext-btn" id="savePoDetails${isNewPo ? '-new' : ''}">Save</a>
+            <a href="#" class="ext-btn" id="savePoDetails">Save</a>
         </div>
     `;
 };
@@ -65,10 +65,10 @@ const extInternalNoteMsg = function(){
     `;
 };
 
-const extButton = function(id){
+const extButton = function( type ){
     return `
-        <button id="${id}"
-            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary" role="button">
+        <button id="managePoItems"
+            class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-icon-primary ${ type }" role="button">
             <span class="ui-button-icon-primary ui-icon" style="background-position: -112px -80px;"></span>
             <span class="ui-button-text">Manage</span>
         </button>
