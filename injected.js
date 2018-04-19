@@ -20,7 +20,7 @@ class InjectScript {
         }
     }
     registerEventHandlers() {
-        // Open Manage Modal for existing PO
+        // Open Manage Modal
         $(document).on('click', '#managePoItems', async e => {
             e.preventDefault();
             if( this.type === 'existingPO' ){
@@ -82,33 +82,19 @@ class InjectScript {
                 return;
             }
             this.data = this.tempData;
-            this.savePoDetails({ isModal: true });
+            this.savePoDetails();
         });
 
-        // Listener for successful submitnewpo request
+        // Listener for successful submitnewpo/cancel request
         chrome.runtime.onMessage.addListener( async request => {
             if( request.newPoSuccess ){
-                let settings = {
-                    url: "https://app.skubana.com/service/v1/purchaseorders",
-                    data: {
-                        limit: 5,
-                        status: 'AWAITING_AUTHORIZATION',
-                        productSku: this.data.items[0].masterSku
-                    },
-                    headers: {
-                        Authorization : "Bearer " + this.authToken
-                    }
-                };
-                let openPOs = await ajax( settings );
-                let findPo = openPOs.find( po => po.internalNotes.indexOf( this.qSkuId ) > -1 );
-                this.data.id = findPo.number;
-                await createPO( this.data );
+                this.data.id = await this.data.getId( this.authToken, this.qSkuId );
+                this.data.create( this.authToken );
             }
             if( request.cancelPoSuccess ){
                 this.posToCancel.forEach( async item => {
-                    await deletePO( item );
+                    await deletePO( item, this.authToken );
                 });
-                delete this.posToCancel;
             }
         });
 
@@ -256,8 +242,7 @@ class InjectScript {
         // Diable #internalNotes
         let notes = $(`${scope} #internalNotes`);
         let value = notes.val();
-        // notes.attr( 'readonly', true ).hide();
-        notes.attr( 'readonly', true );
+        notes.attr( 'readonly', true ).hide();
         notes.removeAttr( 'maxlength' );
         notes.before( extInternalNoteMsg() );
 
@@ -265,11 +250,8 @@ class InjectScript {
         if( value ){
             let validJson = tryParseJSON( value );
             if( validJson ){
-                // This JSON needs to be parsed and combined with/compared to the response data IF there is already a qSkuId in the additionalNotes field
-                // data = this.parseData( validJson );
-                data = validateJson( validJson )
+                data = validJson;
             } else {
-                // This is not JSON and the value should be added to the additionalNotes field of this.data
                 data = {
                     additionalNotes: value
                 };
@@ -277,6 +259,9 @@ class InjectScript {
         }
         if( this.type === 'newPO' ){
             notes.val( this.checkNotes( value ) );
+        }
+        if( this.type === 'existingPO' ){
+            notes.val( '' );
         }
 
         return data;
@@ -308,16 +293,32 @@ class InjectScript {
 
             data.id = $('#poDetailsPane').find('ul > span').text().split('#')[1];
             let tableValues = await this.getTableValues( container );
-            let requestValues = await getPO( data.id );
+            let requestValues = await getPO( data.id, this.authToken );
             let comparedData = {
-                items: [],
+                items: tableValues,
                 id: data.id,
                 additionalNotes: data.additionalNotes || ''
             };
+
+            let updateDetails = {};
+
             if( data.hasOwnProperty( 'items' ) ){
-                comparedData.items = this.checkPoForUpdate( tableValues, data );
+                updateDetails = this.checkPoForUpdate( tableValues, data.items );
             }
-            comparedData.items = this.checkPoForUpdate( tableValues, requestValues );
+            if( requestValues.hasOwnProperty( 'id' ) ){
+                updateDetails = this.checkPoForUpdate( tableValues, requestValues.items );
+            }
+
+            if( updateDetails.somethingChanged ){
+                comparedData.items = updateDetails.dataset;
+                this.data = new PoObject( comparedData );
+                if( updateDetails.listingNeedsUpdating ){
+                    this.openManageModal();
+                } else {
+                    this.data.update( this.authToken );
+                }
+                return;
+            }
 
             this.data = comparedData;
         });
@@ -366,19 +367,13 @@ class InjectScript {
         });
         return masterSkusFromTable;
     }
-    checkPoForUpdate( tableValues, requestedValues ){
-        if( ! requestedValues.length ){
-            return tableValues;
-        }
-        let dataset = requestedValues.items;
+    checkPoForUpdate( tableValues, dataset ){
         let added = tableValues.filter( table => dataset.map( item => item.id ).indexOf( table.id ) === -1 );
         let removed = dataset.filter( data => tableValues.map( item => item.id ).indexOf( data.id ) === -1 );
         let somethingChanged = false;
 
         if( added.length ){
             somethingChanged = true;
-            // console.log( 'the data doesn\'t match the request.' );
-            // console.log( 'an item from the notes field has been added' );
             added.forEach( item => dataset.push( new ItemObject( item ) ) );
         }
         if( removed.length ){
@@ -386,14 +381,10 @@ class InjectScript {
             removed.forEach( item => {
                 let index = dataset.indexOf( item );
                 if( index > -1 ){
-                    // console.log( 'the data doesn\'t match the request.' );
-                    // console.log( 'an item from the notes field has been removed' );
                     dataset.splice( index, 1 );
                 }
             });
         }
-
-        // console.log( dataset, tableValues );
 
         // Check quantities
         let listingNeedsUpdating = false;
@@ -411,35 +402,28 @@ class InjectScript {
             }
         });
 
-        if( somethingChanged ){
-            this.savePoDetails({ listingNeedsUpdating: listingNeedsUpdating });
+        let updateDetails = {
+            somethingChanged: somethingChanged,
+            listingNeedsUpdating: listingNeedsUpdating,
+            dataset: dataset
         }
-        return dataset;
+        return updateDetails;
     }
 
-    savePoDetails( options ){
-        // $('button#updatePoDetails').trigger( 'click' );
-        if( options.isModal ){
-            if( this.type === 'newPO' ){
-                let save = $('.ui-dialog-buttonset').find( 'button' ).first();
-                save.trigger('click');
-            } else if( this.type === 'existingPO' ){
-                // should probably be set up to only close the modal after a successful response
-                // this.data.postToAirtable();
+    savePoDetails(){
+        if( this.type === 'newPO' ){
+            let save = $('.ui-dialog-buttonset').find( 'button' ).first();
+            save.trigger('click');
+        } else if( this.type === 'existingPO' ){
+            var updateDetails = async () => {
+                await this.data.update( this.authToken );
                 this.closeManageModal();
-
-                // Probably only delete the data once the response is successful
-                // delete this.tempData;
-            } else {
-                console.log( 'Something went wrong. The type of PO was not set' );
-                return;
+                delete this.tempData;
             }
-
-        }
-
-        // This is probably dumb. Should probably be a different method
-        if( options.listingNeedsUpdating ){
-            this.openManageModal();
+            updateDetails();
+        } else {
+            console.log( 'Something went wrong. The type of PO was not set' );
+            return;
         }
     }
 }

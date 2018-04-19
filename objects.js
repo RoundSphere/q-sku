@@ -5,6 +5,52 @@ class PoObject {
         this.items  = items ? items.map( item => new ItemObject( item ) ) : [];
         this.additionalNotes = options.additionalNotes || '';
     }
+    create( token ){
+        console.log( this.id, 'create' );
+        let settings = {
+            url         : 'https://da-dev.us/quantum/newpo',
+            method      : "POST",
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            data        : JSON.stringify( this ),
+            contentType : "application/json"
+        };
+        return ajax( settings );
+    }
+    update( token ){
+        console.log( this, 'update' );
+        $( '#updatePoDetails' ).trigger( 'click' );
+        let settings = {
+            url     : 'https://da-dev.us/quantum/changepo',
+            method  : "PUT",
+            data        : JSON.stringify( this ),
+            contentType : "application/json",
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+        };
+        ajax( settings );
+    }
+    getId( token, qSkuId ){
+        let settings = {
+            url: "https://app.skubana.com/service/v1/purchaseorders",
+            data: {
+                limit: 5,
+                status: 'AWAITING_AUTHORIZATION',
+                productSku: this.items[0].masterSku
+            },
+            headers: {
+                Authorization : "Bearer " + token
+            }
+        };
+        let getPoId = async ( settings ) => {
+            let openPOs = await ajax( settings );
+            let findPo = openPOs.find( po => po.internalNotes.indexOf( qSkuId ) > -1 );
+            return findPo.number;
+        }
+        return getPoId( settings );
+    }
 }
 
 class ItemObject {
@@ -48,4 +94,29 @@ class ListingObject{
         this.ltl        = options.ltl;
         this.parent     = options.parent;
     }
+}
+
+async function getPO( id, token ){
+    let settings = {
+        url     : 'https://da-dev.us/quantum/getpo/' + id,
+        method  : "GET",
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        dataType: 'json'
+    };
+    let result = await ajax( settings );
+    return await result;
+}
+
+async function deletePO( id, token ){
+    let settings = {
+        url     : 'https://da-dev.us/quantum/rmpo/' + id,
+        method  : "DELETE",
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    };
+    let result = await ajax( settings );
+    return await result;
 }
