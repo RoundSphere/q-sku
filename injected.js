@@ -105,7 +105,7 @@ class InjectScript {
                 await createPO( this.data );
             }
             if( request.cancelPoSuccess ){
-                this.posToCancel.forEach( item => {
+                this.posToCancel.forEach( async item => {
                     await deletePO( item );
                 });
                 delete this.posToCancel;
@@ -113,7 +113,7 @@ class InjectScript {
         });
 
         // Cancel PO
-        $( document ).on( 'click', '#centerCenterPanel', e => {
+        $( document ).on( 'click', '#centerCenterPanel #cancel', e => {
             let el = $( e.currentTarget );
             let container = el.closest( '#centerCenterPanel' );
             let inputs = container.find( 'td[aria-describedby="ordersGrid_cb"] input[type="checkbox"]:checked' );
