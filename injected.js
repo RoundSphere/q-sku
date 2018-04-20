@@ -359,6 +359,8 @@ class InjectScript {
             if( qtyCellInput.length > 0 ){
                 qtyCellVal = qtyCellInput.val();
             }
+            qtyCellVal = qtyCellVal.replace( ',', '' );
+            qtyCellVal = parseInt( qtyCellVal );
             return {
                 id: getCell( 'productSkuAndName' ).text().split( ' - ' )[0].trim().replace( /\s/g, '-' ).toLowerCase(),
                 masterSku: getCell( 'productSkuAndName' ).text().split( ' - ' )[0],
