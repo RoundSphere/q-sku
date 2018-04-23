@@ -184,14 +184,20 @@ class InjectScript {
             masters.forEach( master => {
                 // Get bundled skus from allBundledSkus const in bundled-skus.js
                 let bundledSkus = allBundledSkus.filter( bundleSku => master.masterSku == bundleSku.masterSku );
-                let filteredListings = result.filter( listing => listing.masterSku === master.masterSku );
+                let filteredListings = result.filter( listing => {
+                    return listing.masterSku === master.masterSku && ! listing.pushInventory;
+                });
                 let custom = master.listings.map( listing => {
                     return {
                         masterSku: listing.masterSku,
                         listingSku: listing.listingSku
                     }
                 });
-                let combo = filteredListings.concat( bundledSkus, custom );
+
+                let uniqueCustom = custom.filter( cItem => {
+                    return filteredListings.map( fItem => fItem.listingSku ).indexOf( cItem.listingSku ) === -1;
+                });
+                let combo = filteredListings.concat( bundledSkus, uniqueCustom );
                 listingsForMaster[master.id] = combo;
             });
             return await listingsForMaster;
