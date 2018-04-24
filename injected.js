@@ -307,16 +307,18 @@ class InjectScript {
             };
 
             let updateDetails = {};
-
+            // If the notes field had JSON, use that to compare
             if( data.hasOwnProperty( 'items' ) ){
                 updateDetails = this.checkPoForUpdate( tableValues, data.items );
+                comparedData.items = updateDetails.dataset;
             }
+            // If there was a successful request with data to Airtable, use that to compare
             if( requestValues.hasOwnProperty( 'id' ) ){
                 updateDetails = this.checkPoForUpdate( tableValues, requestValues.items );
+                comparedData.items = updateDetails.dataset;
             }
 
             if( updateDetails.somethingChanged ){
-                comparedData.items = updateDetails.dataset;
                 this.data = new PoObject( comparedData );
                 if( updateDetails.listingNeedsUpdating ){
                     this.openManageModal();
@@ -426,6 +428,7 @@ class InjectScript {
             var updateDetails = async () => {
                 await this.data.update( this.authToken );
                 this.closeManageModal();
+                delete this.data;
                 delete this.tempData;
             }
             updateDetails();

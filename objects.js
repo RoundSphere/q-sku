@@ -36,8 +36,7 @@ class PoObject {
         let settings = {
             url: "https://app.skubana.com/service/v1/purchaseorders",
             data: {
-                limit: 5,
-                status: 'AWAITING_AUTHORIZATION',
+                limit: 10,
                 productSku: this.items[0].masterSku
             },
             headers: {
