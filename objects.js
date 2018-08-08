@@ -8,7 +8,7 @@ class PoObject {
     create( token ){
         console.log( this.id, 'create' );
         let settings = {
-            url         : 'https://da-dev.us/quantum/newpo',
+            url         : 'https://qsku.dataautomation.com/newpo',
             method      : "POST",
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -22,7 +22,7 @@ class PoObject {
         console.log( this, 'update' );
         $( '#updatePoDetails' ).trigger( 'click' );
         let settings = {
-            url     : 'https://da-dev.us/quantum/changepo',
+            url     : 'https://qsku.dataautomation.com/changepo',
             method  : "PUT",
             data        : JSON.stringify( this ),
             contentType : "application/json",
@@ -97,7 +97,7 @@ class ListingObject{
 
 async function getPO( id, token ){
     let settings = {
-        url     : 'https://da-dev.us/quantum/getpo/' + id,
+        url     : 'https://qsku.dataautomation.com/getpo/' + id,
         method  : "GET",
         headers: {
             'Authorization': `Bearer ${token}`
@@ -110,7 +110,7 @@ async function getPO( id, token ){
 
 async function deletePO( id, token ){
     let settings = {
-        url     : 'https://da-dev.us/quantum/rmpo/' + id,
+        url     : 'https://qsku.dataautomation.com/rmpo/' + id,
         method  : "DELETE",
         headers: {
             'Authorization': `Bearer ${token}`
