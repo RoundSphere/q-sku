@@ -6,7 +6,7 @@
         "16": "icon-20.png",
         "128": "icon-20.png"
     },
-    "manifest_version": 2,
+    "manifest_version": 2.1,
     "permissions": [
         "storage",
         "webRequest",
