@@ -1,12 +1,12 @@
 {
     "name": "Q-SKU",
     "description": "Allow adding additional Listing SKU details for each Master SKU through submitted purchase orders",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "icons": {
         "16": "icon-20.png",
         "128": "icon-20.png"
     },
-    "manifest_version": 2.1,
+    "manifest_version": 2,
     "permissions": [
         "storage",
         "webRequest",
