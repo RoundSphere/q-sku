@@ -10,6 +10,7 @@
     "permissions": [
         "storage",
         "webRequest",
+        "*://qsku.dataautomation.com/*",
         "*://app.skubana.com/*",
         "*://da-dev.us/*"
     ],
