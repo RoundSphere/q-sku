@@ -11,7 +11,8 @@
         "storage",
         "webRequest",
         "*://app.skubana.com/*",
-        "*://da-dev.us/*"
+        "*://da-dev.us/*",
+        "*://qsku.dataautomation.com/*"
     ],
     "background": {
         "scripts" : ["background.js"],
