@@ -169,7 +169,7 @@ class InjectScript {
         async function getListingsForMaster( masters, authToken  ){
             let data, result, listingsForMaster;
             data = {
-                url: "https://app.skubana.com/service/v1/listings",
+                url: "https://api.skubana.com/v1/listings",
                 data: {
                     masterSku: masters.map( item => item.masterSku ).join( ',' ),
                     limit: 500,
