@@ -34,7 +34,7 @@ class PoObject {
     }
     getId( token, qSkuId ){
         let settings = {
-            url: "https://app.skubana.com/service/v1/purchaseorders",
+            url: "https://api.skubana.com/v1/purchaseorders",
             data: {
                 limit: 10,
                 productSku: this.items[0].masterSku
