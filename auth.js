@@ -23,7 +23,7 @@ function checkToken( authToken, response ){
 
 function testAuth( token ){
     $.ajax({
-        url: `https://app.skubana.com/service/v1/listings`,
+        url: `https://api.skubana.com/v1/listings`,
         headers: {
             'Authorization': `Bearer ${token}`
         },
