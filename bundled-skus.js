@@ -1,4 +1,5 @@
-const allBundledSkus = [
+
+const allBundledSkusSSS= [
   {
     "masterSku": "3DDL_AB12GRRR",
     "listingSku": "3DDL_A2"
