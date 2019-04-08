@@ -1,0 +1,153 @@
+#ext-modal {
+    position: absolute;
+    height: 100vh;
+    width: 100vw;
+    background: rgba( 0,0,0,0.5);
+    z-index: 111111111;
+}
+#ext-modal__inner {
+    height: 500px;
+    width: 800px;
+    background: white;
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
+    padding: 20px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate( -50%, -50% );
+}
+#ext-modal__inner select,
+#ext-modal__inner input[type="text"] {
+    width: 100%;
+    max-width: 100%;
+}
+.ui-dialog .modal__content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: white;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+
+.ext-notice {
+    width: 200px;
+    font-size: 11px;
+    line-height: 1.1;
+    margin: 0;
+    color: #e44;
+}
+
+.ext-title {
+    padding: 10px 5px;
+    background: #ccc;
+}
+
+/* Flexbox styles for Listings */
+.ext-flex {
+    display: flex;
+    align-items: center;
+    padding: 5px 0;
+}
+.ext-flex-item--full {
+    flex: 1 1 100%;
+    padding: 3px;
+    box-sizing: border-box;
+}
+.ext-flex-item {
+    flex: 0 0 100px;
+    padding: 3px 10px;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.masterItem {
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+.ext-error,
+.ext-error--input {
+    border: 1px solid #c00;
+}
+.ext-error::after {
+    content: 'The quantities of the listings don\'t equal the total quantity.';
+    display: block;
+    padding: 3px;
+    border-top: 1px solid #c00;
+    color: #c00;
+    font-size: 11px;
+}
+.ext-error--zeros::after {
+    content: 'The quantity for a listing must be greater than 0.';
+}
+.listingSku {
+    background: #fefefe;
+}
+.listingSku:nth-child( odd ){
+    background: #efefef;
+}
+
+.master-sku-container {
+    height: 345px;
+    overflow: auto;
+    margin-bottom: 10px;
+}
+.ext-btn-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.ext-btn {
+    flex: 0 1 auto;
+    border-radius: 2px;
+    display: inline-block;
+    padding: 10px 20px;
+    line-height: 1;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s;
+    cursor: pointer;
+    color: white !important;
+    outline: 0;
+    background: #4CAF50;
+    border: 0;
+    box-sizing: border-box;
+    margin: 0;
+}
+.ext-disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.ext-btn-cancel {
+    background: #c00;
+    margin-right: auto;
+}
+.ext-additional-notes label {
+    font-size: 12px;
+}
+
+.ext-additional-notes textarea {
+    border: 1px solid #ccc;
+    height: 50px;
+    width: 100%;
+    resize: none;
+    padding: 4px;
+    box-sizing: border-box;
+    background: #f4f4f4;
+}
+
+#managePoItems.existingPO {
+    width: 70px;
+    margin-bottom: 5px;
+}
+
+.select2-container {
+    min-width: 200px;
+}
