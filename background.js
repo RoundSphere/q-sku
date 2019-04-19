@@ -21,7 +21,26 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
-
+chrome.runtime.onMessage.addListener( ( message, sender, sendResponse ) => {
+    switch (message.action) {
+        case "ajax":
+            message.message.success = (response) => {
+                sendResponse({
+                    success: true,
+                    response: response
+                });
+            };
+            message.message.error = (response) => {
+                sendResponse({
+                    success: false,
+                    response: response
+                });
+            };
+            $.ajax(message.message);
+            break;
+    }
+    return true;
+});
 
 chrome.webRequest.onCompleted.addListener(
     function (details) {

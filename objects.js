@@ -16,7 +16,7 @@ class PoObject {
             data        : JSON.stringify( this ),
             contentType : "application/json"
         };
-        return ajax( settings );
+        return backgroundAjax( settings );
     }
     update( token ){
         console.log( this, 'update' );
@@ -30,7 +30,7 @@ class PoObject {
                 'Authorization': `Bearer ${token}`
             },
         };
-        ajax( settings );
+        backgroundAjax( settings );
     }
     getId( token, qSkuId ){
         let settings = {
@@ -44,7 +44,7 @@ class PoObject {
             }
         };
         let getPoId = async ( settings ) => {
-            let openPOs = await ajax( settings );
+            let openPOs = await backgroundAjax( settings );
             let findPo = openPOs.find( po => po.internalNotes.indexOf( qSkuId ) > -1 );
             return findPo.number;
         }
@@ -104,7 +104,7 @@ async function getPO( id, token ){
         },
         dataType: 'json'
     };
-    let result = await ajax( settings );
+    let result = await backgroundAjax( settings );
     return await result;
 }
 
@@ -116,6 +116,6 @@ async function deletePO( id, token ){
             'Authorization': `Bearer ${token}`
         }
     };
-    let result = await ajax( settings );
+    let result = await backgroundAjax( settings );
     return await result;
 }

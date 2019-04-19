@@ -193,7 +193,7 @@ class InjectScript {
                     Authorization: "Bearer " + authToken
                 }
             };
-            result = await ajax(data);
+            result = await backgroundAjax(data);
             listingsForMaster = {};
             masters.forEach(master => {
                 // Get bundled skus from allBundledSkus const in bundled-skus.js

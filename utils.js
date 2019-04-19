@@ -8,6 +8,18 @@ function ajax(settings) {
         $.ajax(settings);
     });
 }
+function backgroundAjax(settings) {
+    return new Promise(function(resolve, reject) {
+        chrome.runtime.sendMessage(settings, (response) => {
+            if (response.success) {
+                resolve(response.response);
+            } else {
+                //console.log(response.response);
+                reject(response.response);
+            }
+        });
+    });
+}
 
 function tryParseJSON (jsonString){
     try {

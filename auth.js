@@ -22,22 +22,22 @@ function checkToken( authToken, response ){
 }
 
 function testAuth( token ){
-    $.ajax({
+    backgroundAjax({
         url: `https://api.skubana.com/v1/listings`,
         headers: {
             'Authorization': `Bearer ${token}`
         },
         data: {
             'limit': 1
-        },
-        success: function( response ){
-            chrome.storage.sync.set({ 'authToken': token });
-            let injectScript = new InjectScript();
-            injectScript.authToken = token;
-        },
-        error: function( response ){
-            chrome.storage.sync.remove('authToken');
-            checkToken( null, token );
         }
+    })
+    .then((response) => {
+        chrome.storage.sync.set({ 'authToken': token });
+        let injectScript = new InjectScript();
+        injectScript.authToken = token;
+    })
+    .catch((response) => {
+        chrome.storage.sync.remove('authToken');
+        checkToken( null, token );
     });
 }
