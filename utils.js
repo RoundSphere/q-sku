@@ -8,14 +8,17 @@ function ajax(settings) {
         $.ajax(settings);
     });
 }
+
 function backgroundAjax(settings) {
+    settings.action = 'ajax';
     return new Promise(function(resolve, reject) {
         chrome.runtime.sendMessage(settings, (response) => {
             if (response.success) {
-                resolve(response.response);
+                console.log('ajax() accepted', response.payload);
+                resolve(response.payload);
             } else {
-                //console.log(response.response);
-                reject(response.response);
+                console.log('ajax() rejected', response.payload);
+                reject(response.payload);
             }
         });
     });

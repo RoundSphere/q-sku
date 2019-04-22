@@ -8,6 +8,7 @@ chrome.alarms.create("check", {
     when: Date.now() + 100,
     periodInMinutes: regularInterval
 });
+
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "check") {
         if (alarm.periodInMinutes === dismissedInterval) {
@@ -15,28 +16,28 @@ chrome.alarms.onAlarm.addListener((alarm) => {
                 periodInMinutes: regularInterval
             });
         }
-
         getApidata2();
-
     }
 });
 
-chrome.runtime.onMessage.addListener( ( message, sender, sendResponse ) => {
-    switch (message.action) {
+chrome.runtime.onMessage.addListener( ( request, sender, sendResponse ) => {
+    switch (request.action) {
         case "ajax":
-            message.message.success = (response) => {
+            request.success = (response) => {
+                console.log("[ajax ok]", request.url, '\n', response);
                 sendResponse({
                     success: true,
-                    response: response
+                    payload: response
                 });
             };
-            message.message.error = (response) => {
+            request.error = (response) => {
+                console.log("[ajax error]", request.url, '\n', response);
                 sendResponse({
                     success: false,
-                    response: response
+                    payload: response
                 });
             };
-            $.ajax(message.message);
+            $.ajax(request);
             break;
     }
     return true;
@@ -120,7 +121,7 @@ function nextPagedata(nextLink) {
 
                 }
 
-                
+
                 if (obj.length < 100) {
                     console.log(allBundled);
                     let allBundledSkusdat = JSON.stringify(allBundled);
@@ -137,5 +138,3 @@ function nextPagedata(nextLink) {
         });
     }
 }
-
-
